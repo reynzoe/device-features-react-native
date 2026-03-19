@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Travel Diary",
+    "slug": "travel-diary-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "traveldiary",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.traveldiary.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Travel Diary uses the camera to capture your travel memories.",
+        "NSLocationWhenInUseUsageDescription": "Travel Diary uses your location to tag travel entries with an address.",
+        "NSUserNotificationsUsageDescription": "Travel Diary sends a notification when you save a new entry."
+      }
+    },
+    "android": {
+      "package": "com.traveldiary.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#D97706"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      ["expo-camera", { "cameraPermission": "Allow Travel Diary to access your camera." }],
+      ["expo-location", { "locationWhenInUsePermission": "Allow Travel Diary to access your location." }],
+      ["expo-notifications", { "color": "#D97706" }]
+    ],
+    "experiments": { "typedRoutes": true }
+  }
+}
