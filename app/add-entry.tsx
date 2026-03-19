@@ -8,7 +8,7 @@ import {
     Alert,
     ActivityIndicator,
     ScrollView,
-    Platform,
+    TextInput,
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
@@ -24,6 +24,9 @@ import { TravelEntry } from '../types';
 
 type ScreenPhase = 'camera' | 'preview' | 'saving';
 
+const getSuggestedTitle = (address: string) =>
+    address.split(',')[0]?.trim() || 'Travel memory';
+
 export default function AddEntryScreen() {
     const { colors, isDark } = useTheme();
     const router = useRouter();
@@ -35,17 +38,20 @@ export default function AddEntryScreen() {
     const [phase, setPhase] = useState<ScreenPhase>('camera');
     const [facing, setFacing] = useState<CameraType>('back');
     const [photoUri, setPhotoUri] = useState<string | null>(null);
+    const [title, setTitle] = useState('');
+    const [description, setDescription] = useState('');
     const [address, setAddress] = useState('');
     const [coords, setCoords] = useState({ lat: 0, lng: 0 });
     const [locLoading, setLocLoading] = useState(false);
     const [locError, setLocError] = useState<string | null>(null);
     const [snapping, setSnapping] = useState(false);
 
-    // ── Reset whenever the screen comes back into focus ──────────────────────
     const clearDraft = useCallback(() => {
         setPhase('camera');
         setFacing('back');
         setPhotoUri(null);
+        setTitle('');
+        setDescription('');
         setAddress('');
         setCoords({ lat: 0, lng: 0 });
         setLocLoading(false);
@@ -70,7 +76,6 @@ export default function AddEntryScreen() {
         router.back();
     }, [clearDraft, router]);
 
-    // ── Get reverse-geocoded address ──────────────────────────────────────────
     const fetchAddress = async () => {
         setLocLoading(true);
         setLocError(null);
@@ -116,7 +121,6 @@ export default function AddEntryScreen() {
         }
     };
 
-    // ── Take photo ────────────────────────────────────────────────────────────
     const takePicture = async () => {
         if (!cameraRef.current || snapping) return;
         setSnapping(true);
@@ -136,7 +140,6 @@ export default function AddEntryScreen() {
         }
     };
 
-    // ── Save entry ────────────────────────────────────────────────────────────
     const handleSave = async () => {
         if (!photoUri) {
             Alert.alert('No Photo', 'Please take a photo before saving.');
@@ -150,9 +153,14 @@ export default function AddEntryScreen() {
         setPhase('saving');
 
         try {
+            const normalizedTitle = title.trim() || getSuggestedTitle(address);
+            const normalizedDescription = description.trim();
+
             const entry: TravelEntry = {
                 id: `entry_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
                 imageUri: photoUri,
+                title: normalizedTitle,
+                description: normalizedDescription,
                 address: address || 'Unknown location',
                 latitude: coords.lat,
                 longitude: coords.lng,
@@ -164,12 +172,13 @@ export default function AddEntryScreen() {
             try {
                 const notifOk = await requestNotificationPermission();
                 if (notifOk) {
-                    await sendEntrySavedNotification(entry.address);
+                    await sendEntrySavedNotification(entry.title || entry.address, entry.address);
                 }
             } catch (notificationError) {
                 console.warn('[notifications] entry saved, but local notification failed:', notificationError);
             }
 
+            clearDraft();
             router.back();
         } catch {
             setPhase('preview');
@@ -177,7 +186,6 @@ export default function AddEntryScreen() {
         }
     };
 
-    // ── Waiting for permission status ─────────────────────────────────────────
     if (!camPermission) {
         return (
             <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
@@ -188,15 +196,14 @@ export default function AddEntryScreen() {
         );
     }
 
-    // ── Permission denied ─────────────────────────────────────────────────────
     if (!camPermission.granted) {
         return (
             <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
                 <View style={styles.permissionBox}>
-                    <Text style={styles.permEmoji}>📷</Text>
+                    <Text style={[styles.permEyebrow, { color: colors.primary }]}>CAMERA ACCESS</Text>
                     <Text style={[styles.permTitle, { color: colors.text }]}>Camera Required</Text>
                     <Text style={[styles.permSub, { color: colors.textSecondary }]}>
-                        Travel Diary needs camera access to capture your memories.
+                        Wanderly needs camera access to capture your memories.
                     </Text>
                     <TouchableOpacity
                         style={[styles.permBtn, { backgroundColor: colors.primary }]}
@@ -217,64 +224,64 @@ export default function AddEntryScreen() {
         );
     }
 
-    // ── Preview / Saving ──────────────────────────────────────────────────────
     if (phase === 'preview' || phase === 'saving') {
         const isSaving = phase === 'saving';
+        const suggestedTitle = getSuggestedTitle(address);
 
         return (
             <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
-                <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
-                    {/* Photo */}
+                <ScrollView
+                    bounces={false}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
                     <View>
                         <Image source={{ uri: photoUri! }} style={styles.previewImg} resizeMode="cover" />
+                        <View style={[styles.previewOverlay, { backgroundColor: 'rgba(35, 20, 17, 0.18)' }]} />
                         <View style={[styles.capturedBadge, { backgroundColor: colors.primary }]}>
-                            <Text style={styles.capturedBadgeText}>CAPTURED</Text>
+                            <Text style={styles.capturedBadgeText}>READY TO SAVE</Text>
                         </View>
                     </View>
 
-                    {/* Location card */}
                     <View
                         style={[
                             styles.locCard,
                             {
                                 backgroundColor: colors.surface,
                                 borderColor: colors.border,
-                                shadowOpacity: isDark ? 0.2 : 0.05,
+                                shadowOpacity: isDark ? 0.24 : 0.08,
                             },
                         ]}
                     >
                         <View style={styles.locCardHeader}>
-                            <Text style={[styles.locLabel, { color: colors.textSecondary }]}>📍 LOCATION</Text>
-                            {locLoading && (
+                            <Text style={[styles.locLabel, { color: colors.textSecondary }]}>LOCATION</Text>
+                            {locLoading ? (
                                 <View style={styles.locLoadingRow}>
                                     <ActivityIndicator size="small" color={colors.primary} />
                                     <Text style={[styles.locLoadingText, { color: colors.textMuted }]}>
-                                        Fetching address…
+                                        Fetching address...
                                     </Text>
                                 </View>
-                            )}
+                            ) : null}
                         </View>
 
-                        {/* Error banner */}
-                        {locError && !locLoading && (
+                        {locError && !locLoading ? (
                             <View
                                 style={[
                                     styles.errorBanner,
-                                    { backgroundColor: isDark ? '#3B1515' : '#FEF2F2' },
+                                    { backgroundColor: isDark ? '#4A2320' : '#FFF0EC' },
                                 ]}
                             >
-                                <Text style={[styles.errorText, { color: colors.danger }]}>⚠️ {locError}</Text>
+                                <Text style={[styles.errorText, { color: colors.danger }]}>{locError}</Text>
                             </View>
-                        )}
+                        ) : null}
 
-                        {/* Address text */}
                         {!locLoading && address ? (
                             <Text style={[styles.addressText, { color: colors.text }]}>{address}</Text>
                         ) : null}
 
-                        {/* Timestamp */}
                         <Text style={[styles.tsText, { color: colors.textMuted }]}>
-                            🕐{' '}
+                            Captured{' '}
                             {new Date().toLocaleString('en-US', {
                                 month: 'long',
                                 day: 'numeric',
@@ -285,7 +292,65 @@ export default function AddEntryScreen() {
                         </Text>
                     </View>
 
-                    {/* Action buttons */}
+                    <View
+                        style={[
+                            styles.detailCard,
+                            {
+                                backgroundColor: colors.surface,
+                                borderColor: colors.border,
+                                shadowOpacity: isDark ? 0.24 : 0.08,
+                            },
+                        ]}
+                    >
+                        <Text style={[styles.sectionKicker, { color: colors.primary }]}>MEMORY DETAILS</Text>
+
+                        <Text style={[styles.inputLabel, { color: colors.text }]}>Title</Text>
+                        <TextInput
+                            value={title}
+                            onChangeText={setTitle}
+                            placeholder={suggestedTitle}
+                            placeholderTextColor={colors.textMuted}
+                            style={[
+                                styles.titleInput,
+                                {
+                                    color: colors.text,
+                                    backgroundColor: colors.background,
+                                    borderColor: colors.borderLight,
+                                },
+                            ]}
+                            autoCapitalize="words"
+                            returnKeyType="next"
+                        />
+
+                        <View style={styles.descriptionHeader}>
+                            <Text style={[styles.inputLabel, { color: colors.text }]}>Description</Text>
+                            <Text style={[styles.charCount, { color: colors.textMuted }]}>
+                                {description.length}/220
+                            </Text>
+                        </View>
+
+                        <TextInput
+                            value={description}
+                            onChangeText={(value) => setDescription(value.slice(0, 220))}
+                            placeholder="What made this place memorable?"
+                            placeholderTextColor={colors.textMuted}
+                            style={[
+                                styles.descriptionInput,
+                                {
+                                    color: colors.text,
+                                    backgroundColor: colors.background,
+                                    borderColor: colors.borderLight,
+                                },
+                            ]}
+                            multiline
+                            textAlignVertical="top"
+                        />
+
+                        <Text style={[styles.detailHint, { color: colors.textMuted }]}>
+                            Leave the title blank and Wanderly will use the location name.
+                        </Text>
+                    </View>
+
                     <View style={styles.actions}>
                         <TouchableOpacity
                             style={[
@@ -295,9 +360,7 @@ export default function AddEntryScreen() {
                             onPress={clearDraft}
                             disabled={isSaving}
                         >
-                            <Text style={[styles.retakeBtnText, { color: colors.textSecondary }]}>
-                                ↩ Retake
-                            </Text>
+                            <Text style={[styles.retakeBtnText, { color: colors.textSecondary }]}>Retake</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -312,7 +375,7 @@ export default function AddEntryScreen() {
                             {isSaving ? (
                                 <ActivityIndicator size="small" color="#FFF" />
                             ) : (
-                                <Text style={styles.saveBtnText}>Save Entry ✓</Text>
+                                <Text style={styles.saveBtnText}>Save to Wanderly</Text>
                             )}
                         </TouchableOpacity>
                     </View>
@@ -325,28 +388,25 @@ export default function AddEntryScreen() {
         );
     }
 
-    // ── Camera view ───────────────────────────────────────────────────────────
     return (
         <View style={[styles.flex, { backgroundColor: '#000' }]}>
             <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing} />
 
-            {/* Top controls */}
             <SafeAreaView style={styles.camTopBar}>
                 <TouchableOpacity style={styles.camOverlayBtn} onPress={handleLeaveWithoutSaving}>
-                    <Text style={styles.camBtnTxt}>‹ Back</Text>
+                    <Text style={styles.camBtnTxt}>Close</Text>
                 </TouchableOpacity>
 
-                <Text style={styles.camLabel}>CAPTURE MOMENT</Text>
+                <Text style={styles.camLabel}>WANDERLY CAMERA</Text>
 
                 <TouchableOpacity
                     style={styles.camOverlayBtn}
                     onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}
                 >
-                    <Text style={styles.camBtnTxt}>⇄ Flip</Text>
+                    <Text style={styles.camBtnTxt}>Switch</Text>
                 </TouchableOpacity>
             </SafeAreaView>
 
-            {/* Grid overlay hint */}
             <View style={styles.camGuide} pointerEvents="none">
                 <View style={[styles.camGuideCorner, styles.camGuideCornerTL]} />
                 <View style={[styles.camGuideCorner, styles.camGuideCornerTR]} />
@@ -354,7 +414,6 @@ export default function AddEntryScreen() {
                 <View style={[styles.camGuideCorner, styles.camGuideCornerBR]} />
             </View>
 
-            {/* Shutter */}
             <View style={styles.shutterRow}>
                 <View style={styles.shutterRing}>
                     <TouchableOpacity
@@ -362,7 +421,7 @@ export default function AddEntryScreen() {
                         onPress={takePicture}
                         disabled={snapping}
                     >
-                        {snapping && <ActivityIndicator size="small" color="#1C1917" />}
+                        {snapping ? <ActivityIndicator size="small" color="#2F1E1A" /> : null}
                     </TouchableOpacity>
                 </View>
                 <Text style={styles.camHint}>Tap to capture</Text>
@@ -375,24 +434,38 @@ const styles = StyleSheet.create({
     flex: { flex: 1 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-    // ── Permission ─────────────────────────────────────────────────────────────
     permissionBox: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         padding: 40,
     },
-    permEmoji: { fontSize: 64, marginBottom: 20 },
+    permEyebrow: {
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 1.8,
+        marginBottom: 14,
+    },
     permTitle: { fontSize: 22, fontWeight: '800', marginBottom: 12, textAlign: 'center' },
     permSub: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 32 },
     permBtn: {
         width: '100%',
-        paddingVertical: 15,
+        paddingVertical: 16,
         borderRadius: 14,
         alignItems: 'center',
         marginBottom: 12,
+        shadowColor: '#F26F5C',
+        shadowOffset: { width: 0, height: 8 },
+        shadowRadius: 18,
+        shadowOpacity: 0.28,
+        elevation: 5,
     },
-    permBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+    permBtnText: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: 17,
+        letterSpacing: 0.4,
+    },
     cancelBtn: {
         width: '100%',
         paddingVertical: 15,
@@ -401,16 +474,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     cancelBtnText: { fontWeight: '600', fontSize: 15 },
-    discardHint: {
-        marginTop: 14,
-        marginBottom: 28,
-        paddingHorizontal: 24,
-        textAlign: 'center',
-        fontSize: 13,
-        lineHeight: 19,
-    },
 
-    // ── Camera ─────────────────────────────────────────────────────────────────
     camTopBar: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -426,12 +490,11 @@ const styles = StyleSheet.create({
     },
     camBtnTxt: { color: '#FFF', fontWeight: '600', fontSize: 14 },
     camLabel: {
-        color: 'rgba(255,255,255,0.65)',
+        color: 'rgba(255,255,255,0.7)',
         fontSize: 10,
         fontWeight: '800',
-        letterSpacing: 2.5,
+        letterSpacing: 2.4,
     },
-    // Framing guides
     camGuide: {
         position: 'absolute',
         top: '20%',
@@ -449,7 +512,6 @@ const styles = StyleSheet.create({
     camGuideCornerTR: { top: 0, right: 0, borderTopWidth: 2, borderRightWidth: 2 },
     camGuideCornerBL: { bottom: 0, left: 0, borderBottomWidth: 2, borderLeftWidth: 2 },
     camGuideCornerBR: { bottom: 0, right: 0, borderBottomWidth: 2, borderRightWidth: 2 },
-    // Shutter
     shutterRow: {
         position: 'absolute',
         bottom: 52,
@@ -475,10 +537,12 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    camHint: { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: '500' },
+    camHint: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '500' },
 
-    // ── Preview ────────────────────────────────────────────────────────────────
-    previewImg: { width: '100%', height: 340 },
+    previewImg: { width: '100%', height: 332 },
+    previewOverlay: {
+        ...StyleSheet.absoluteFillObject,
+    },
     capturedBadge: {
         position: 'absolute',
         top: 16,
@@ -494,14 +558,15 @@ const styles = StyleSheet.create({
         letterSpacing: 1.5,
     },
     locCard: {
-        margin: 16,
-        borderRadius: 18,
+        marginTop: 16,
+        marginHorizontal: 16,
+        borderRadius: 20,
         padding: 18,
         borderWidth: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowRadius: 8,
-        elevation: 3,
+        shadowColor: '#120B09',
+        shadowOffset: { width: 0, height: 10 },
+        shadowRadius: 22,
+        elevation: 4,
     },
     locCardHeader: {
         flexDirection: 'row',
@@ -509,41 +574,140 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 12,
     },
-    locLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1.5 },
-    locLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    locLoadingText: { fontSize: 12 },
-    errorBanner: { borderRadius: 10, padding: 10, marginBottom: 10 },
-    errorText: { fontSize: 13, fontWeight: '500' },
-    addressText: { fontSize: 16, fontWeight: '600', lineHeight: 24, marginBottom: 10 },
-    tsText: { fontSize: 13, marginTop: 2 },
-
-    // ── Actions ────────────────────────────────────────────────────────────────
+    locLabel: {
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 1.4,
+    },
+    locLoadingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    locLoadingText: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    errorBanner: {
+        borderRadius: 14,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        marginBottom: 12,
+    },
+    errorText: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    addressText: {
+        fontSize: 20,
+        lineHeight: 28,
+        fontWeight: '800',
+        marginBottom: 12,
+    },
+    tsText: {
+        fontSize: 13,
+        lineHeight: 20,
+        fontWeight: '500',
+    },
+    detailCard: {
+        marginTop: 14,
+        marginHorizontal: 16,
+        borderRadius: 20,
+        padding: 18,
+        borderWidth: 1,
+        shadowColor: '#120B09',
+        shadowOffset: { width: 0, height: 10 },
+        shadowRadius: 22,
+        elevation: 4,
+    },
+    sectionKicker: {
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 1.5,
+        marginBottom: 16,
+    },
+    inputLabel: {
+        fontSize: 15,
+        fontWeight: '700',
+        marginBottom: 9,
+    },
+    titleInput: {
+        borderWidth: 1,
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        fontSize: 16,
+        fontWeight: '600',
+        marginBottom: 18,
+    },
+    descriptionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 9,
+    },
+    charCount: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    descriptionInput: {
+        borderWidth: 1,
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        minHeight: 130,
+        fontSize: 15,
+        lineHeight: 22,
+        marginBottom: 12,
+    },
+    detailHint: {
+        fontSize: 13,
+        lineHeight: 19,
+    },
     actions: {
         flexDirection: 'row',
         gap: 12,
         paddingHorizontal: 16,
-        paddingBottom: 40,
+        marginTop: 18,
     },
     retakeBtn: {
         flex: 1,
-        paddingVertical: 15,
-        borderRadius: 14,
+        paddingVertical: 16,
+        borderRadius: 18,
         alignItems: 'center',
         borderWidth: 1,
     },
-    retakeBtnText: { fontSize: 15, fontWeight: '600' },
+    retakeBtnText: {
+        fontSize: 15,
+        fontWeight: '700',
+    },
     saveBtn: {
-        flex: 2,
-        paddingVertical: 15,
-        borderRadius: 14,
+        flex: 1.25,
+        paddingVertical: 16,
+        borderRadius: 18,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#D97706',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.35,
-        shadowRadius: 10,
+        shadowColor: '#F26F5C',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.25,
+        shadowRadius: 18,
         elevation: 5,
     },
-    saveBtnDisabled: { opacity: 0.6 },
-    saveBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+    saveBtnDisabled: {
+        opacity: 0.72,
+    },
+    saveBtnText: {
+        color: '#FFF',
+        fontSize: 15,
+        fontWeight: '800',
+        letterSpacing: 0.2,
+    },
+    discardHint: {
+        marginTop: 14,
+        marginBottom: 28,
+        paddingHorizontal: 24,
+        textAlign: 'center',
+        fontSize: 13,
+        lineHeight: 19,
+    },
 });

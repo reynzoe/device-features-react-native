@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-    View,
-    Text,
-    Image,
-    TouchableOpacity,
-    StyleSheet,
-} from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { TravelEntry } from '../types';
 
@@ -16,10 +10,16 @@ interface Props {
 
 const fmt = (iso: string) => {
     const d = new Date(iso);
-    const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const date = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     return { date, time };
 };
+
+const getEntryTitle = (entry: TravelEntry) =>
+    entry.title?.trim() || entry.address.split(',')[0]?.trim() || 'Untitled memory';
+
+const getEntryDescription = (entry: TravelEntry) =>
+    entry.description?.trim() || 'A quiet stop worth remembering.';
 
 export default function EntryCard({ entry, onRemove }: Props) {
     const { colors, isDark } = useTheme();
@@ -32,34 +32,53 @@ export default function EntryCard({ entry, onRemove }: Props) {
                 {
                     backgroundColor: colors.surface,
                     borderColor: colors.border,
-                    shadowOpacity: isDark ? 0.3 : 0.07,
+                    shadowOpacity: isDark ? 0.26 : 0.1,
                 },
             ]}
         >
-            {/* Photo */}
-            <Image source={{ uri: entry.imageUri }} style={styles.image} resizeMode="cover" />
+            <View style={styles.mediaWrap}>
+                <Image source={{ uri: entry.imageUri }} style={styles.image} resizeMode="cover" />
+                <View style={styles.imageOverlay} />
+                <View
+                    style={[
+                        styles.dateChip,
+                        { backgroundColor: isDark ? 'rgba(34,24,22,0.84)' : 'rgba(255,253,251,0.9)' },
+                    ]}
+                >
+                    <Text style={[styles.dateChipText, { color: colors.text }]}>{date}</Text>
+                </View>
 
-            {/* Content */}
-            <View style={styles.body}>
-                {/* Address */}
-                <View style={styles.addressRow}>
-                    <Text style={styles.pin}>📍</Text>
-                    <Text
-                        style={[styles.address, { color: colors.text }]}
-                        numberOfLines={2}
-                    >
+                <View style={styles.heroCopy}>
+                    <Text style={styles.heroTitle} numberOfLines={2}>
+                        {getEntryTitle(entry)}
+                    </Text>
+                    <Text style={styles.heroSubtitle} numberOfLines={1}>
                         {entry.address}
                     </Text>
                 </View>
+            </View>
 
-                {/* Divider */}
+            <View style={styles.body}>
+                <View style={styles.copyBlock}>
+                    <Text style={[styles.kicker, { color: colors.primary }]}>TRAVEL NOTE</Text>
+                    <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={3}>
+                        {getEntryDescription(entry)}
+                    </Text>
+                </View>
+
                 <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
 
-                {/* Date + Remove */}
                 <View style={styles.footer}>
-                    <View>
-                        <Text style={[styles.date, { color: colors.textSecondary }]}>{date}</Text>
-                        <Text style={[styles.time, { color: colors.textMuted }]}>{time}</Text>
+                    <View style={styles.metaBlock}>
+                        <Text style={[styles.locationLabel, { color: colors.textMuted }]}>Location</Text>
+                        <Text style={[styles.locationValue, { color: colors.text }]} numberOfLines={1}>
+                            {entry.address}
+                        </Text>
+                    </View>
+
+                    <View style={styles.metaBlock}>
+                        <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Saved</Text>
+                        <Text style={[styles.metaValue, { color: colors.textSecondary }]}>{time}</Text>
                     </View>
 
                     <TouchableOpacity
@@ -68,9 +87,9 @@ export default function EntryCard({ entry, onRemove }: Props) {
                             styles.removeBtn,
                             { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
                         ]}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        activeOpacity={0.85}
                     >
-                        <Text style={styles.removeIcon}>🗑️</Text>
+                        <Text style={[styles.removeText, { color: colors.danger }]}>Delete</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -80,54 +99,118 @@ export default function EntryCard({ entry, onRemove }: Props) {
 
 const styles = StyleSheet.create({
     card: {
-        flexDirection: 'row',
-        borderRadius: 18,
+        borderRadius: 24,
         overflow: 'hidden',
         borderWidth: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowRadius: 10,
+        shadowColor: '#101820',
+        shadowOffset: { width: 0, height: 12 },
+        shadowRadius: 24,
         elevation: 4,
     },
+    mediaWrap: {
+        position: 'relative',
+    },
     image: {
-        width: 112,
-        height: 125,
+        width: '100%',
+        height: 176,
+    },
+    imageOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(29, 17, 13, 0.28)',
+    },
+    dateChip: {
+        position: 'absolute',
+        left: 16,
+        top: 16,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+    },
+    dateChipText: {
+        fontSize: 12,
+        fontWeight: '700',
+        letterSpacing: 0.2,
+    },
+    heroCopy: {
+        position: 'absolute',
+        left: 16,
+        right: 16,
+        bottom: 16,
+        gap: 4,
+    },
+    heroTitle: {
+        color: '#FFFFFF',
+        fontSize: 24,
+        lineHeight: 28,
+        fontWeight: '800',
+    },
+    heroSubtitle: {
+        color: 'rgba(255,255,255,0.9)',
+        fontSize: 13,
+        fontWeight: '600',
     },
     body: {
-        flex: 1,
-        padding: 14,
-        justifyContent: 'space-between',
+        padding: 16,
     },
-    addressRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 5,
+    copyBlock: {
+        gap: 10,
     },
-    pin: { fontSize: 14, marginTop: 1 },
-    address: {
-        flex: 1,
-        fontSize: 14,
-        fontWeight: '600',
-        lineHeight: 20,
+    kicker: {
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 1.4,
+    },
+    description: {
+        fontSize: 15,
+        lineHeight: 23,
+        fontWeight: '500',
     },
     divider: {
         height: 1,
-        marginVertical: 8,
+        marginVertical: 14,
     },
     footer: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'flex-end',
+        justifyContent: 'space-between',
+        gap: 14,
+        flexWrap: 'wrap',
     },
-    date: { fontSize: 12, fontWeight: '600' },
-    time: { fontSize: 11, marginTop: 2 },
+    metaBlock: {
+        gap: 5,
+        flexShrink: 1,
+    },
+    locationLabel: {
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+    },
+    locationValue: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    metaLabel: {
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+    },
+    metaValue: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
     removeBtn: {
-        width: 34,
-        height: 34,
-        borderRadius: 17,
-        justifyContent: 'center',
-        alignItems: 'center',
+        minWidth: 88,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 999,
         borderWidth: 1,
+        alignItems: 'center',
     },
-    removeIcon: { fontSize: 15 },
+    removeText: {
+        fontSize: 13,
+        fontWeight: '700',
+        letterSpacing: 0.2,
+    },
 });

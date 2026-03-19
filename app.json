@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Travel Diary",
+    "name": "Wanderly",
     "slug": "travel-diary-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,15 +10,15 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.traveldiary.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Travel Diary uses the camera to capture your travel memories.",
-        "NSLocationWhenInUseUsageDescription": "Travel Diary uses your location to tag travel entries with an address.",
-        "NSUserNotificationsUsageDescription": "Travel Diary sends a notification when you save a new entry."
+        "NSCameraUsageDescription": "Wanderly uses the camera to capture your travel memories.",
+        "NSLocationWhenInUseUsageDescription": "Wanderly uses your location to tag travel entries with an address.",
+        "NSUserNotificationsUsageDescription": "Wanderly sends a notification when you save a new entry."
       }
     },
     "android": {
       "package": "com.traveldiary.app",
       "adaptiveIcon": {
-        "backgroundColor": "#D97706"
+        "backgroundColor": "#F26F5C"
       },
       "permissions": [
         "android.permission.CAMERA",
@@ -30,9 +30,9 @@
     },
     "plugins": [
       "expo-router",
-      ["expo-camera", { "cameraPermission": "Allow Travel Diary to access your camera." }],
-      ["expo-location", { "locationWhenInUsePermission": "Allow Travel Diary to access your location." }],
-      ["expo-notifications", { "color": "#D97706" }]
+      ["expo-camera", { "cameraPermission": "Allow Wanderly to access your camera." }],
+      ["expo-location", { "locationWhenInUsePermission": "Allow Wanderly to access your location." }],
+      ["expo-notifications", { "color": "#F26F5C" }]
     ],
     "experiments": { "typedRoutes": true }
   }

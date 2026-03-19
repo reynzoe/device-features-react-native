@@ -1,6 +1,8 @@
 export interface TravelEntry {
     id: string;
     imageUri: string;
+    title?: string;
+    description?: string;
     address: string;
     latitude: number;
     longitude: number;

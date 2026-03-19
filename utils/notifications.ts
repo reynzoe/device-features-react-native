@@ -14,12 +14,12 @@ Notifications.setNotificationHandler({
 /** Call once on app startup (Android channel setup). */
 export async function setupNotificationChannel(): Promise<void> {
     if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('travel-diary', {
-            name: 'Travel Diary',
-            description: 'Notifications for saved travel entries',
+        await Notifications.setNotificationChannelAsync('wanderly-journal', {
+            name: 'Wanderly',
+            description: 'Notifications for saved travel memories',
             importance: Notifications.AndroidImportance.HIGH,
             vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#F59E0B',
+            lightColor: '#F26F5C',
             sound: 'default',
         });
     }
@@ -34,32 +34,15 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 /** Fire an immediate local notification when an entry is saved. */
-export async function sendEntrySavedNotification(address: string): Promise<void> {
+export async function sendEntrySavedNotification(title: string, address: string): Promise<void> {
     await Notifications.scheduleNotificationAsync({
         content: {
-            title: '✈️ Travel Entry Saved!',
-            body: `📍 ${address}`,
+            title: 'Saved to Wanderly',
+            body: `${title} is ready in your travel journal.`,
             sound: 'default',
-            data: { screen: 'home' },
-            ...(Platform.OS === 'android' ? { channelId: 'travel-diary' } : {}),
+            data: { screen: 'home', address },
+            ...(Platform.OS === 'android' ? { channelId: 'wanderly-journal' } : {}),
         },
         trigger: null, // immediate
-    });
-}
-
-/** Fire a test local notification to verify banner/sound behavior. */
-export async function sendTestNotification(delaySeconds = 2): Promise<void> {
-    await Notifications.scheduleNotificationAsync({
-        content: {
-            title: 'Test Notification',
-            body: 'If you hear a sound, local notification audio is working.',
-            sound: 'default',
-            data: { screen: 'home', type: 'test' },
-            ...(Platform.OS === 'android' ? { channelId: 'travel-diary' } : {}),
-        },
-        trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-            seconds: delaySeconds,
-        },
     });
 }

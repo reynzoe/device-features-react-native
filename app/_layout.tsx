@@ -31,7 +31,7 @@ function LayoutContent() {
                 <Stack.Screen
                     name="add-entry"
                     options={{
-                        title: 'New Entry',
+                        title: 'New Memory',
                         headerStyle: { backgroundColor: colors.surface },
                         headerTintColor: colors.text,
                     }}
