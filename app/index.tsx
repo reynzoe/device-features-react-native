@@ -4,7 +4,6 @@ import {
     Text,
     FlatList,
     TouchableOpacity,
-    StyleSheet,
     Alert,
     ActivityIndicator,
     TextInput,
@@ -17,10 +16,13 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { loadEntries, removeEntry, updateEntry } from '../utils/storage';
 import { TravelEntry } from '../types';
 import EntryCard from '../components/EntryCard';
+import EarthPatternBackground from '../components/EarthPatternBackground';
+import styles from '../styles/screens/homeStyles';
 
 const DEFAULT_ENTRY_TITLE = 'Travel Photo';
 
@@ -59,6 +61,8 @@ export default function HomeScreen() {
     const [savingEntry, setSavingEntry] = useState(false);
     const [modalImageAspectRatio, setModalImageAspectRatio] = useState(1);
     const [isPhotoZoomVisible, setIsPhotoZoomVisible] = useState(false);
+    const hasHydratedEntriesRef = useRef(false);
+    const entriesSignatureRef = useRef('');
     const detailCardOpacity = useRef(new Animated.Value(0)).current;
     const detailCardTranslateY = useRef(new Animated.Value(16)).current;
     const detailCardScale = useRef(new Animated.Value(0.97)).current;
@@ -69,11 +73,26 @@ export default function HomeScreen() {
         useCallback(() => {
             let active = true;
             (async () => {
-                setLoading(true);
+                const showInitialLoader = !hasHydratedEntriesRef.current;
+
+                if (showInitialLoader) {
+                    setLoading(true);
+                }
+
                 const data = await loadEntries();
                 if (active) {
-                    setEntries(data);
-                    setLoading(false);
+                    const nextSignature = JSON.stringify(data);
+
+                    if (nextSignature !== entriesSignatureRef.current) {
+                        entriesSignatureRef.current = nextSignature;
+                        setEntries(data);
+                    }
+
+                    hasHydratedEntriesRef.current = true;
+
+                    if (showInitialLoader) {
+                        setLoading(false);
+                    }
                 }
             })();
             return () => {
@@ -226,6 +245,7 @@ export default function HomeScreen() {
                 description: editDescriptionDraft.trim(),
             });
 
+            entriesSignatureRef.current = JSON.stringify(updatedEntries);
             setEntries(updatedEntries);
 
             const updatedSelectedEntry = updatedEntries.find((entry) => entry.id === selectedEntry.id) || null;
@@ -250,6 +270,7 @@ export default function HomeScreen() {
                     onPress: async () => {
                         try {
                             const updated = await removeEntry(id);
+                            entriesSignatureRef.current = JSON.stringify(updated);
                             setEntries(updated);
                             if (selectedEntry?.id === id) {
                                 closeEntryDetails();
@@ -287,13 +308,14 @@ export default function HomeScreen() {
                     style={[styles.searchButton, { backgroundColor: colors.primary }]}
                     onPress={applySearch}
                     activeOpacity={0.9}
+                    accessibilityLabel="Search entries"
                 >
-                    <Text style={styles.searchButtonText}>Search</Text>
+                    <Feather name="search" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
             </View>
 
             <View style={styles.sectionRow}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Entries</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Entries</Text>
                 <Text style={[styles.sectionMeta, { color: colors.textMuted }]}>{sectionMeta}</Text>
             </View>
         </View>
@@ -301,6 +323,8 @@ export default function HomeScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+            <EarthPatternBackground />
+
             <View style={styles.toolbarWrap}>
                 <View style={styles.toolbarRow}>
                     <Text style={[styles.toolbarBrand, { color: colors.text }]}>Wanderly</Text>
@@ -369,7 +393,7 @@ export default function HomeScreen() {
                 activeOpacity={0.92}
                 accessibilityLabel="Add travel entry"
             >
-                <Text style={styles.bottomCtaPlus}>+</Text>
+                <Feather name="camera" size={22} color="#FFFFFF" />
             </TouchableOpacity>
 
             <Modal
@@ -415,7 +439,7 @@ export default function HomeScreen() {
                                             </TouchableOpacity>
                                         <View style={styles.photoHintWrap}>
                                             <View style={styles.photoHintChip}>
-                                                <Text style={styles.photoHintText}>Tap to view full photo</Text>
+                                                <Text style={styles.photoHintText}>Tap photo to view fully</Text>
                                             </View>
                                         </View>
                                         <TouchableOpacity
@@ -567,310 +591,3 @@ export default function HomeScreen() {
         </SafeAreaView>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    center: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    toolbarWrap: {
-        paddingHorizontal: 18,
-        paddingTop: 6,
-        paddingBottom: 8,
-    },
-    toolbarRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
-    },
-    toolbarBrand: {
-        fontSize: 24,
-        fontWeight: '900',
-        letterSpacing: -0.8,
-    },
-    modeToggle: {
-        minWidth: 82,
-        paddingHorizontal: 16,
-        paddingVertical: 11,
-        borderRadius: 999,
-        borderWidth: 1,
-        alignItems: 'center',
-    },
-    modeToggleText: {
-        fontSize: 13,
-        fontWeight: '700',
-    },
-    listContent: {
-        paddingHorizontal: 18,
-        paddingTop: 4,
-        paddingBottom: 96,
-    },
-    separator: {
-        height: 18,
-    },
-    headerWrap: {
-        marginBottom: 18,
-    },
-    searchRow: {
-        flexDirection: 'row',
-        gap: 12,
-        marginBottom: 16,
-    },
-    searchField: {
-        flex: 1,
-        borderRadius: 22,
-        borderWidth: 1,
-        paddingHorizontal: 16,
-        justifyContent: 'center',
-        minHeight: 58,
-    },
-    searchInput: {
-        fontSize: 16,
-        fontWeight: '500',
-    },
-    searchButton: {
-        minWidth: 96,
-        paddingHorizontal: 18,
-        borderRadius: 22,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    searchButtonText: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        fontWeight: '800',
-        letterSpacing: 0.2,
-    },
-    sectionRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 6,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '900',
-        letterSpacing: 0.3,
-    },
-    sectionMeta: {
-        fontSize: 13,
-        fontWeight: '700',
-    },
-    emptyState: {
-        borderRadius: 28,
-        borderWidth: 1,
-        paddingVertical: 28,
-        paddingHorizontal: 24,
-        alignItems: 'center',
-        marginTop: 6,
-    },
-    emptyTitle: {
-        fontSize: 20,
-        fontWeight: '800',
-        marginBottom: 10,
-    },
-    emptyBody: {
-        fontSize: 14,
-        lineHeight: 22,
-        textAlign: 'center',
-    },
-    bottomCta: {
-        position: 'absolute',
-        left: 18,
-        bottom: 22,
-        width: 58,
-        height: 58,
-        borderRadius: 29,
-        borderWidth: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#F26F5C',
-        shadowOffset: { width: 0, height: 14 },
-        shadowOpacity: 0.2,
-        shadowRadius: 22,
-        elevation: 5,
-    },
-    bottomCtaPlus: {
-        color: '#FFFFFF',
-        fontSize: 24,
-        lineHeight: 24,
-        fontWeight: '800',
-        marginTop: -2,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(18, 12, 10, 0.46)',
-    },
-    modalScroll: {
-        flex: 1,
-    },
-    modalScrollContent: {
-        flexGrow: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 36,
-    },
-    modalCard: {
-        borderRadius: 28,
-        borderWidth: 1,
-        overflow: 'hidden',
-        shadowColor: '#120B09',
-        shadowOffset: { width: 0, height: 18 },
-        shadowRadius: 28,
-        elevation: 8,
-    },
-    modalMediaWrap: {
-        position: 'relative',
-    },
-    modalImage: {
-        width: '100%',
-    },
-    photoHintWrap: {
-        position: 'absolute',
-        left: 14,
-        bottom: 14,
-    },
-    photoHintChip: {
-        backgroundColor: 'rgba(18, 12, 10, 0.58)',
-        borderRadius: 999,
-        paddingHorizontal: 14,
-        paddingVertical: 9,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.18)',
-    },
-    photoHintText: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '800',
-        letterSpacing: 0.2,
-    },
-    modalCloseButton: {
-        position: 'absolute',
-        top: 16,
-        right: 16,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 999,
-    },
-    modalCloseText: {
-        fontSize: 13,
-        fontWeight: '800',
-    },
-    modalBody: {
-        paddingHorizontal: 18,
-        paddingTop: 16,
-        paddingBottom: 18,
-    },
-    modalLocation: {
-        fontSize: 12,
-        fontWeight: '800',
-        letterSpacing: 1.2,
-        marginBottom: 10,
-        textTransform: 'uppercase',
-    },
-    modalTitle: {
-        fontSize: 28,
-        lineHeight: 32,
-        fontWeight: '900',
-        marginBottom: 10,
-    },
-    modalDescription: {
-        fontSize: 15,
-        lineHeight: 24,
-        marginBottom: 14,
-    },
-    modalMeta: {
-        fontSize: 13,
-        fontWeight: '600',
-        marginBottom: 18,
-    },
-    modalLabel: {
-        fontSize: 14,
-        fontWeight: '800',
-        marginBottom: 8,
-    },
-    modalInput: {
-        borderWidth: 1,
-        borderRadius: 16,
-        paddingHorizontal: 16,
-        paddingVertical: 13,
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 14,
-    },
-    modalTextArea: {
-        borderWidth: 1,
-        borderRadius: 16,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        minHeight: 112,
-        fontSize: 15,
-        lineHeight: 22,
-        marginBottom: 14,
-    },
-    modalActions: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    modalPrimaryButton: {
-        flex: 1,
-        paddingVertical: 15,
-        borderRadius: 18,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    modalPrimaryText: {
-        color: '#FFFFFF',
-        fontSize: 15,
-        fontWeight: '800',
-        letterSpacing: 0.2,
-    },
-    modalSecondaryButton: {
-        flex: 1,
-        paddingVertical: 15,
-        borderRadius: 18,
-        borderWidth: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    modalSecondaryText: {
-        fontSize: 15,
-        fontWeight: '800',
-    },
-    zoomOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(12, 8, 7, 0.95)',
-        zIndex: 20,
-    },
-    zoomScroll: {
-        flex: 1,
-    },
-    zoomScrollContent: {
-        flexGrow: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 48,
-    },
-    zoomImage: {
-        maxWidth: '100%',
-    },
-    zoomCloseButton: {
-        position: 'absolute',
-        top: 52,
-        right: 18,
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 999,
-    },
-    zoomCloseText: {
-        fontSize: 14,
-        fontWeight: '800',
-    },
-});

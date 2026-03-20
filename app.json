@@ -18,7 +18,7 @@
     "android": {
       "package": "com.traveldiary.app",
       "adaptiveIcon": {
-        "backgroundColor": "#F26F5C"
+        "backgroundColor": "#D96C4A"
       },
       "permissions": [
         "android.permission.CAMERA",
@@ -32,7 +32,7 @@
       "expo-router",
       ["expo-camera", { "cameraPermission": "Allow Wanderly to access your camera." }],
       ["expo-location", { "locationWhenInUsePermission": "Allow Wanderly to access your location." }],
-      ["expo-notifications", { "color": "#F26F5C" }]
+      ["expo-notifications", { "color": "#D96C4A" }]
     ],
     "experiments": { "typedRoutes": true }
   }

@@ -38,6 +38,7 @@ function LayoutContent() {
                         headerStyle: { backgroundColor: colors.surface },
                         headerTintColor: colors.text,
                         animation: 'fade_from_bottom',
+                        headerBackVisible: false,
                     }}
                 />
             </Stack>

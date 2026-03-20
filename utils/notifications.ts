@@ -19,7 +19,7 @@ export async function setupNotificationChannel(): Promise<void> {
             description: 'Notifications for saved travel memories',
             importance: Notifications.AndroidImportance.HIGH,
             vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#F26F5C',
+            lightColor: '#D96C4A',
             sound: 'default',
         });
     }

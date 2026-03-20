@@ -1,10 +1,9 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useLayoutEffect } from 'react';
 import {
     View,
     Text,
     Image,
     TouchableOpacity,
-    StyleSheet,
     Alert,
     ActivityIndicator,
     ScrollView,
@@ -15,6 +14,7 @@ import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { addEntry } from '../utils/storage';
 import {
@@ -22,8 +22,10 @@ import {
     sendEntrySavedNotification,
 } from '../utils/notifications';
 import { TravelEntry } from '../types';
+import EarthPatternBackground from '../components/EarthPatternBackground';
+import styles, { cameraFillStyle } from '../styles/screens/addEntryStyles';
 
-type ScreenPhase = 'camera' | 'preview' | 'saving';
+type ScreenPhase = 'camera' | 'confirm' | 'preview' | 'saving';
 
 const DEFAULT_ENTRY_TITLE = 'Travel Photo';
 
@@ -73,16 +75,32 @@ export default function AddEntryScreen() {
         }, [clearDraft])
     );
 
-    useEffect(() => {
-        return navigation.addListener('beforeRemove', () => {
-            clearDraft();
+    const handleHeaderBackToHome = useCallback(() => {
+        router.back();
+    }, [router]);
+
+    useLayoutEffect(() => {
+        const showHeaderBack = phase === 'confirm' || phase === 'preview' || phase === 'saving';
+
+        navigation.setOptions({
+            headerLeft: showHeaderBack
+                ? () => (
+                    <TouchableOpacity
+                        onPress={handleHeaderBackToHome}
+                        style={styles.headerBackButton}
+                        accessibilityLabel="Back to home"
+                        activeOpacity={0.75}
+                    >
+                        <Feather name="chevron-left" size={22} color={colors.text} />
+                    </TouchableOpacity>
+                )
+                : () => null,
         });
-    }, [clearDraft, navigation]);
+    }, [colors.text, handleHeaderBackToHome, navigation, phase]);
 
     const handleLeaveWithoutSaving = useCallback(() => {
-        clearDraft();
         router.back();
-    }, [clearDraft, router]);
+    }, [router]);
 
     const fetchAddress = async () => {
         setLocLoading(true);
@@ -137,8 +155,7 @@ export default function AddEntryScreen() {
             if (photo?.uri) {
                 setPhotoUri(photo.uri);
                 setOriginalPhotoUri(photo.uri);
-                setPhase('preview');
-                await fetchAddress();
+                setPhase('confirm');
             } else {
                 Alert.alert('Error', 'Could not capture photo. Please try again.');
             }
@@ -147,6 +164,12 @@ export default function AddEntryScreen() {
         } finally {
             setSnapping(false);
         }
+    };
+
+    const handleSelectPhoto = async () => {
+        if (!photoUri) return;
+        setPhase('preview');
+        await fetchAddress();
     };
 
     const rotatePhoto = useCallback(async () => {
@@ -220,7 +243,6 @@ export default function AddEntryScreen() {
                 console.warn('[notifications] entry saved, but local notification failed:', notificationError);
             }
 
-            clearDraft();
             router.back();
         } catch {
             setPhase('preview');
@@ -231,6 +253,7 @@ export default function AddEntryScreen() {
     if (!camPermission) {
         return (
             <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
+                <EarthPatternBackground />
                 <View style={styles.center}>
                     <ActivityIndicator size="large" color={colors.primary} />
                 </View>
@@ -241,6 +264,7 @@ export default function AddEntryScreen() {
     if (!camPermission.granted) {
         return (
             <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
+                <EarthPatternBackground />
                 <View style={styles.permissionBox}>
                     <Text style={[styles.permEyebrow, { color: colors.primary }]}>CAMERA ACCESS</Text>
                     <Text style={[styles.permTitle, { color: colors.text }]}>Camera Required</Text>
@@ -266,11 +290,78 @@ export default function AddEntryScreen() {
         );
     }
 
+    if (phase === 'confirm' && photoUri) {
+        return (
+            <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
+                <EarthPatternBackground />
+                <ScrollView
+                    bounces={false}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.previewContent}
+                >
+                    <View
+                        style={[
+                            styles.previewCard,
+                            {
+                                backgroundColor: colors.surface,
+                                borderColor: colors.border,
+                                shadowOpacity: isDark ? 0.26 : 0.08,
+                            },
+                        ]}
+                    >
+                        <View style={styles.previewFrame}>
+                            <Image source={{ uri: photoUri }} style={styles.previewImg} resizeMode="contain" />
+                            <View style={styles.previewShade} />
+                            <View style={[styles.capturedBadge, { backgroundColor: colors.primary }]}>
+                                <Text style={styles.capturedBadgeText}>CAPTURED</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.previewFooter}>
+                            <View style={styles.previewCopy}>
+                                <Text style={[styles.previewTitle, { color: colors.text }]}>Use This Photo?</Text>
+                                <Text style={[styles.previewSub, { color: colors.textSecondary }]}>
+                                    Retake another shot or select this one to continue with your entry.
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    <View style={styles.actions}>
+                        <TouchableOpacity
+                            style={[
+                                styles.retakeBtn,
+                                { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                            ]}
+                            onPress={clearDraft}
+                            disabled={snapping}
+                        >
+                            <Text style={[styles.retakeBtnText, { color: colors.textSecondary }]}>Retake</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.saveBtn, { backgroundColor: colors.primary }]}
+                            onPress={handleSelectPhoto}
+                            disabled={snapping}
+                        >
+                            <Text style={styles.saveBtnText}>Select Photo</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <Text style={[styles.discardHint, { color: colors.textMuted }]}>
+                        The address will be added automatically after you select this photo.
+                    </Text>
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
+
     if (phase === 'preview' || phase === 'saving') {
         const isSaving = phase === 'saving';
 
         return (
             <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
+                <EarthPatternBackground />
                 <ScrollView
                     bounces={false}
                     showsVerticalScrollIndicator={false}
@@ -351,7 +442,7 @@ export default function AddEntryScreen() {
                             <View
                                 style={[
                                     styles.errorBanner,
-                                    { backgroundColor: isDark ? '#4A2320' : '#FFF0EC' },
+                                    { backgroundColor: isDark ? '#4A342E' : '#F8E7DD' },
                                 ]}
                             >
                                 <Text style={[styles.errorText, { color: colors.danger }]}>{locError}</Text>
@@ -436,18 +527,8 @@ export default function AddEntryScreen() {
                     <View style={styles.actions}>
                         <TouchableOpacity
                             style={[
-                                styles.retakeBtn,
-                                { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-                            ]}
-                            onPress={clearDraft}
-                            disabled={isSaving || editingImage}
-                        >
-                            <Text style={[styles.retakeBtnText, { color: colors.textSecondary }]}>Retake</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[
                                 styles.saveBtn,
+                                styles.singleActionButton,
                                 { backgroundColor: colors.primary },
                                 (isSaving || locLoading || editingImage) && styles.saveBtnDisabled,
                             ]}
@@ -472,7 +553,7 @@ export default function AddEntryScreen() {
 
     return (
         <View style={[styles.flex, { backgroundColor: '#000' }]}>
-            <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing} />
+            <CameraView ref={cameraRef} style={cameraFillStyle} facing={facing} />
 
             <SafeAreaView style={styles.camTopBar}>
                 <TouchableOpacity style={styles.camOverlayBtn} onPress={handleLeaveWithoutSaving}>
@@ -511,322 +592,3 @@ export default function AddEntryScreen() {
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    flex: { flex: 1 },
-    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
-    permissionBox: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 40,
-    },
-    permEyebrow: {
-        fontSize: 11,
-        fontWeight: '800',
-        letterSpacing: 1.8,
-        marginBottom: 14,
-    },
-    permTitle: { fontSize: 22, fontWeight: '800', marginBottom: 12, textAlign: 'center' },
-    permSub: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 32 },
-    permBtn: {
-        width: '100%',
-        paddingVertical: 16,
-        borderRadius: 16,
-        alignItems: 'center',
-        marginBottom: 12,
-        shadowColor: '#F26F5C',
-        shadowOffset: { width: 0, height: 8 },
-        shadowRadius: 18,
-        shadowOpacity: 0.28,
-        elevation: 5,
-    },
-    permBtnText: {
-        color: '#FFF',
-        fontWeight: '700',
-        fontSize: 17,
-        letterSpacing: 0.4,
-    },
-    cancelBtn: {
-        width: '100%',
-        paddingVertical: 15,
-        borderRadius: 16,
-        alignItems: 'center',
-        borderWidth: 1,
-    },
-    cancelBtnText: { fontWeight: '600', fontSize: 15 },
-
-    camTopBar: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-    },
-    camOverlayBtn: {
-        backgroundColor: 'rgba(0,0,0,0.45)',
-        paddingHorizontal: 16,
-        paddingVertical: 9,
-        borderRadius: 22,
-    },
-    camBtnTxt: { color: '#FFF', fontWeight: '600', fontSize: 14 },
-    camLabel: {
-        color: 'rgba(255,255,255,0.7)',
-        fontSize: 10,
-        fontWeight: '800',
-        letterSpacing: 2.4,
-    },
-    camGuide: {
-        position: 'absolute',
-        top: '20%',
-        left: '8%',
-        right: '8%',
-        bottom: '20%',
-    },
-    camGuideCorner: {
-        position: 'absolute',
-        width: 24,
-        height: 24,
-        borderColor: 'rgba(255,255,255,0.55)',
-    },
-    camGuideCornerTL: { top: 0, left: 0, borderTopWidth: 2, borderLeftWidth: 2 },
-    camGuideCornerTR: { top: 0, right: 0, borderTopWidth: 2, borderRightWidth: 2 },
-    camGuideCornerBL: { bottom: 0, left: 0, borderBottomWidth: 2, borderLeftWidth: 2 },
-    camGuideCornerBR: { bottom: 0, right: 0, borderBottomWidth: 2, borderRightWidth: 2 },
-    shutterRow: {
-        position: 'absolute',
-        bottom: 52,
-        left: 0,
-        right: 0,
-        alignItems: 'center',
-    },
-    shutterRing: {
-        width: 84,
-        height: 84,
-        borderRadius: 42,
-        borderWidth: 4,
-        borderColor: 'rgba(255,255,255,0.75)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    shutterBtn: {
-        width: 68,
-        height: 68,
-        borderRadius: 34,
-        backgroundColor: '#FFF',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    camHint: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '500' },
-
-    previewContent: {
-        paddingTop: 16,
-        paddingBottom: 32,
-    },
-    previewCard: {
-        marginHorizontal: 16,
-        borderRadius: 28,
-        borderWidth: 1,
-        overflow: 'hidden',
-        shadowColor: '#120B09',
-        shadowOffset: { width: 0, height: 12 },
-        shadowRadius: 26,
-        elevation: 4,
-    },
-    previewFrame: {
-        height: 360,
-        backgroundColor: '#1E1715',
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-    },
-    previewImg: {
-        width: '100%',
-        height: '100%',
-    },
-    previewShade: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(35, 20, 17, 0.14)',
-    },
-    capturedBadge: {
-        position: 'absolute',
-        top: 16,
-        right: 16,
-        paddingHorizontal: 12,
-        paddingVertical: 5,
-        borderRadius: 20,
-    },
-    capturedBadgeText: {
-        color: '#FFF',
-        fontSize: 10,
-        fontWeight: '800',
-        letterSpacing: 1.5,
-    },
-    previewFooter: {
-        paddingHorizontal: 18,
-        paddingVertical: 18,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 14,
-    },
-    previewCopy: {
-        flex: 1,
-        gap: 6,
-    },
-    previewTitle: {
-        fontSize: 21,
-        fontWeight: '800',
-    },
-    previewSub: {
-        fontSize: 14,
-        lineHeight: 20,
-    },
-    rotateButton: {
-        minWidth: 96,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        borderRadius: 18,
-        borderWidth: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    rotateButtonText: {
-        fontSize: 14,
-        fontWeight: '800',
-        letterSpacing: 0.2,
-    },
-    infoCard: {
-        marginTop: 16,
-        marginHorizontal: 16,
-        borderRadius: 22,
-        padding: 18,
-        borderWidth: 1,
-        shadowColor: '#120B09',
-        shadowOffset: { width: 0, height: 10 },
-        shadowRadius: 22,
-        elevation: 4,
-    },
-    sectionKicker: {
-        fontSize: 11,
-        fontWeight: '800',
-        letterSpacing: 1.5,
-        marginBottom: 14,
-    },
-    locationStatus: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 10,
-    },
-    locationStatusText: {
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    errorBanner: {
-        borderRadius: 14,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        marginBottom: 12,
-    },
-    errorText: {
-        fontSize: 13,
-        fontWeight: '600',
-    },
-    addressText: {
-        fontSize: 20,
-        lineHeight: 28,
-        fontWeight: '800',
-        marginBottom: 12,
-    },
-    tsText: {
-        fontSize: 13,
-        lineHeight: 20,
-        fontWeight: '500',
-    },
-    inputLabel: {
-        fontSize: 15,
-        fontWeight: '700',
-        marginBottom: 9,
-    },
-    titleInput: {
-        borderWidth: 1,
-        borderRadius: 16,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 18,
-    },
-    descriptionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 9,
-    },
-    charCount: {
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    descriptionInput: {
-        borderWidth: 1,
-        borderRadius: 16,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        minHeight: 130,
-        fontSize: 15,
-        lineHeight: 22,
-        marginBottom: 12,
-    },
-    detailHint: {
-        fontSize: 13,
-        lineHeight: 19,
-    },
-    actions: {
-        flexDirection: 'row',
-        gap: 12,
-        paddingHorizontal: 16,
-        marginTop: 18,
-    },
-    retakeBtn: {
-        flex: 1,
-        paddingVertical: 16,
-        borderRadius: 18,
-        alignItems: 'center',
-        borderWidth: 1,
-    },
-    retakeBtnText: {
-        fontSize: 15,
-        fontWeight: '700',
-    },
-    saveBtn: {
-        flex: 1.25,
-        paddingVertical: 16,
-        borderRadius: 18,
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#F26F5C',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.25,
-        shadowRadius: 18,
-        elevation: 5,
-    },
-    saveBtnDisabled: {
-        opacity: 0.72,
-    },
-    saveBtnText: {
-        color: '#FFF',
-        fontSize: 15,
-        fontWeight: '800',
-        letterSpacing: 0.2,
-    },
-    discardHint: {
-        marginTop: 14,
-        paddingHorizontal: 24,
-        textAlign: 'center',
-        fontSize: 13,
-        lineHeight: 19,
-    },
-});
