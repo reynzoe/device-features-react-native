@@ -13,6 +13,7 @@ import {
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { addEntry } from '../utils/storage';
@@ -24,20 +25,21 @@ import { TravelEntry } from '../types';
 
 type ScreenPhase = 'camera' | 'preview' | 'saving';
 
-const getSuggestedTitle = (address: string) =>
-    address.split(',')[0]?.trim() || 'Travel memory';
+const DEFAULT_ENTRY_TITLE = 'Travel Photo';
 
 export default function AddEntryScreen() {
     const { colors, isDark } = useTheme();
     const router = useRouter();
     const navigation = useNavigation();
     const cameraRef = useRef<CameraView>(null);
+    const editLockRef = useRef(false);
 
     const [camPermission, requestCamPermission] = useCameraPermissions();
 
     const [phase, setPhase] = useState<ScreenPhase>('camera');
     const [facing, setFacing] = useState<CameraType>('back');
     const [photoUri, setPhotoUri] = useState<string | null>(null);
+    const [originalPhotoUri, setOriginalPhotoUri] = useState<string | null>(null);
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [address, setAddress] = useState('');
@@ -45,11 +47,14 @@ export default function AddEntryScreen() {
     const [locLoading, setLocLoading] = useState(false);
     const [locError, setLocError] = useState<string | null>(null);
     const [snapping, setSnapping] = useState(false);
+    const [editingImage, setEditingImage] = useState(false);
+    const [rotationAngle, setRotationAngle] = useState(0);
 
     const clearDraft = useCallback(() => {
         setPhase('camera');
         setFacing('back');
         setPhotoUri(null);
+        setOriginalPhotoUri(null);
         setTitle('');
         setDescription('');
         setAddress('');
@@ -57,6 +62,9 @@ export default function AddEntryScreen() {
         setLocLoading(false);
         setLocError(null);
         setSnapping(false);
+        setEditingImage(false);
+        setRotationAngle(0);
+        editLockRef.current = false;
     }, []);
 
     useFocusEffect(
@@ -128,6 +136,7 @@ export default function AddEntryScreen() {
             const photo = await cameraRef.current.takePictureAsync({ quality: 0.85 });
             if (photo?.uri) {
                 setPhotoUri(photo.uri);
+                setOriginalPhotoUri(photo.uri);
                 setPhase('preview');
                 await fetchAddress();
             } else {
@@ -139,6 +148,39 @@ export default function AddEntryScreen() {
             setSnapping(false);
         }
     };
+
+    const rotatePhoto = useCallback(async () => {
+        if (!originalPhotoUri || editLockRef.current) return;
+
+        const nextRotation = (rotationAngle + 90) % 360;
+        setRotationAngle(nextRotation);
+
+        if (nextRotation === 0) {
+            setPhotoUri(originalPhotoUri);
+            return;
+        }
+
+        editLockRef.current = true;
+        setEditingImage(true);
+
+        try {
+            const result = await manipulateAsync(
+                originalPhotoUri,
+                [{ rotate: nextRotation }],
+                {
+                    compress: 0.92,
+                    format: SaveFormat.JPEG,
+                }
+            );
+
+            setPhotoUri(result.uri);
+        } catch {
+            Alert.alert('Edit Failed', 'Could not rotate the photo. Please try again.');
+        } finally {
+            editLockRef.current = false;
+            setEditingImage(false);
+        }
+    }, [originalPhotoUri, rotationAngle]);
 
     const handleSave = async () => {
         if (!photoUri) {
@@ -153,7 +195,7 @@ export default function AddEntryScreen() {
         setPhase('saving');
 
         try {
-            const normalizedTitle = title.trim() || getSuggestedTitle(address);
+            const normalizedTitle = title.trim() || DEFAULT_ENTRY_TITLE;
             const normalizedDescription = description.trim();
 
             const entry: TravelEntry = {
@@ -226,7 +268,6 @@ export default function AddEntryScreen() {
 
     if (phase === 'preview' || phase === 'saving') {
         const isSaving = phase === 'saving';
-        const suggestedTitle = getSuggestedTitle(address);
 
         return (
             <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
@@ -234,36 +275,77 @@ export default function AddEntryScreen() {
                     bounces={false}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={styles.previewContent}
                 >
-                    <View>
-                        <Image source={{ uri: photoUri! }} style={styles.previewImg} resizeMode="cover" />
-                        <View style={[styles.previewOverlay, { backgroundColor: 'rgba(35, 20, 17, 0.18)' }]} />
-                        <View style={[styles.capturedBadge, { backgroundColor: colors.primary }]}>
-                            <Text style={styles.capturedBadgeText}>READY TO SAVE</Text>
+                    <View
+                        style={[
+                            styles.previewCard,
+                            {
+                                backgroundColor: colors.surface,
+                                borderColor: colors.border,
+                                shadowOpacity: isDark ? 0.26 : 0.08,
+                            },
+                        ]}
+                    >
+                        <View style={styles.previewFrame}>
+                            <Image
+                                source={{ uri: photoUri! }}
+                                style={styles.previewImg}
+                                resizeMode="contain"
+                            />
+                            <View style={styles.previewShade} />
+                            <View style={[styles.capturedBadge, { backgroundColor: colors.primary }]}>
+                                <Text style={styles.capturedBadgeText}>PHOTO READY</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.previewFooter}>
+                            <View style={styles.previewCopy}>
+                                <Text style={[styles.previewTitle, { color: colors.text }]}>Preview Your Memory</Text>
+                                <Text style={[styles.previewSub, { color: colors.textSecondary }]}>
+                                    Rotate if needed, then add the details before saving.
+                                </Text>
+                            </View>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.rotateButton,
+                                    { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                                ]}
+                                onPress={rotatePhoto}
+                                disabled={editingImage || isSaving}
+                            >
+                                {editingImage ? (
+                                    <ActivityIndicator size="small" color={colors.primary} />
+                                ) : (
+                                    <Text style={[styles.rotateButtonText, { color: colors.textSecondary }]}>
+                                        Rotate
+                                    </Text>
+                                )}
+                            </TouchableOpacity>
                         </View>
                     </View>
 
                     <View
                         style={[
-                            styles.locCard,
+                            styles.infoCard,
                             {
                                 backgroundColor: colors.surface,
                                 borderColor: colors.border,
-                                shadowOpacity: isDark ? 0.24 : 0.08,
+                                shadowOpacity: isDark ? 0.22 : 0.07,
                             },
                         ]}
                     >
-                        <View style={styles.locCardHeader}>
-                            <Text style={[styles.locLabel, { color: colors.textSecondary }]}>LOCATION</Text>
-                            {locLoading ? (
-                                <View style={styles.locLoadingRow}>
-                                    <ActivityIndicator size="small" color={colors.primary} />
-                                    <Text style={[styles.locLoadingText, { color: colors.textMuted }]}>
-                                        Fetching address...
-                                    </Text>
-                                </View>
-                            ) : null}
-                        </View>
+                        <Text style={[styles.sectionKicker, { color: colors.primary }]}>CAPTURED LOCATION</Text>
+
+                        {locLoading ? (
+                            <View style={styles.locationStatus}>
+                                <ActivityIndicator size="small" color={colors.primary} />
+                                <Text style={[styles.locationStatusText, { color: colors.textMuted }]}>
+                                    Fetching address...
+                                </Text>
+                            </View>
+                        ) : null}
 
                         {locError && !locLoading ? (
                             <View
@@ -294,11 +376,11 @@ export default function AddEntryScreen() {
 
                     <View
                         style={[
-                            styles.detailCard,
+                            styles.infoCard,
                             {
                                 backgroundColor: colors.surface,
                                 borderColor: colors.border,
-                                shadowOpacity: isDark ? 0.24 : 0.08,
+                                shadowOpacity: isDark ? 0.22 : 0.07,
                             },
                         ]}
                     >
@@ -308,7 +390,7 @@ export default function AddEntryScreen() {
                         <TextInput
                             value={title}
                             onChangeText={setTitle}
-                            placeholder={suggestedTitle}
+                            placeholder="Empire State Building in New York!"
                             placeholderTextColor={colors.textMuted}
                             style={[
                                 styles.titleInput,
@@ -347,7 +429,7 @@ export default function AddEntryScreen() {
                         />
 
                         <Text style={[styles.detailHint, { color: colors.textMuted }]}>
-                            Leave the title blank and Wanderly will use the location name.
+                            Leave the title blank and Wanderly will save it as Travel Photo.
                         </Text>
                     </View>
 
@@ -358,7 +440,7 @@ export default function AddEntryScreen() {
                                 { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
                             ]}
                             onPress={clearDraft}
-                            disabled={isSaving}
+                            disabled={isSaving || editingImage}
                         >
                             <Text style={[styles.retakeBtnText, { color: colors.textSecondary }]}>Retake</Text>
                         </TouchableOpacity>
@@ -367,10 +449,10 @@ export default function AddEntryScreen() {
                             style={[
                                 styles.saveBtn,
                                 { backgroundColor: colors.primary },
-                                (isSaving || locLoading) && styles.saveBtnDisabled,
+                                (isSaving || locLoading || editingImage) && styles.saveBtnDisabled,
                             ]}
                             onPress={handleSave}
-                            disabled={isSaving || locLoading}
+                            disabled={isSaving || locLoading || editingImage}
                         >
                             {isSaving ? (
                                 <ActivityIndicator size="small" color="#FFF" />
@@ -451,7 +533,7 @@ const styles = StyleSheet.create({
     permBtn: {
         width: '100%',
         paddingVertical: 16,
-        borderRadius: 14,
+        borderRadius: 16,
         alignItems: 'center',
         marginBottom: 12,
         shadowColor: '#F26F5C',
@@ -469,7 +551,7 @@ const styles = StyleSheet.create({
     cancelBtn: {
         width: '100%',
         paddingVertical: 15,
-        borderRadius: 14,
+        borderRadius: 16,
         alignItems: 'center',
         borderWidth: 1,
     },
@@ -539,9 +621,34 @@ const styles = StyleSheet.create({
     },
     camHint: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '500' },
 
-    previewImg: { width: '100%', height: 332 },
-    previewOverlay: {
+    previewContent: {
+        paddingTop: 16,
+        paddingBottom: 32,
+    },
+    previewCard: {
+        marginHorizontal: 16,
+        borderRadius: 28,
+        borderWidth: 1,
+        overflow: 'hidden',
+        shadowColor: '#120B09',
+        shadowOffset: { width: 0, height: 12 },
+        shadowRadius: 26,
+        elevation: 4,
+    },
+    previewFrame: {
+        height: 360,
+        backgroundColor: '#1E1715',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+    },
+    previewImg: {
+        width: '100%',
+        height: '100%',
+    },
+    previewShade: {
         ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(35, 20, 17, 0.14)',
     },
     capturedBadge: {
         position: 'absolute',
@@ -557,10 +664,44 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         letterSpacing: 1.5,
     },
-    locCard: {
+    previewFooter: {
+        paddingHorizontal: 18,
+        paddingVertical: 18,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 14,
+    },
+    previewCopy: {
+        flex: 1,
+        gap: 6,
+    },
+    previewTitle: {
+        fontSize: 21,
+        fontWeight: '800',
+    },
+    previewSub: {
+        fontSize: 14,
+        lineHeight: 20,
+    },
+    rotateButton: {
+        minWidth: 96,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        borderRadius: 18,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    rotateButtonText: {
+        fontSize: 14,
+        fontWeight: '800',
+        letterSpacing: 0.2,
+    },
+    infoCard: {
         marginTop: 16,
         marginHorizontal: 16,
-        borderRadius: 20,
+        borderRadius: 22,
         padding: 18,
         borderWidth: 1,
         shadowColor: '#120B09',
@@ -568,23 +709,19 @@ const styles = StyleSheet.create({
         shadowRadius: 22,
         elevation: 4,
     },
-    locCardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    locLabel: {
+    sectionKicker: {
         fontSize: 11,
         fontWeight: '800',
-        letterSpacing: 1.4,
+        letterSpacing: 1.5,
+        marginBottom: 14,
     },
-    locLoadingRow: {
+    locationStatus: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
+        marginBottom: 10,
     },
-    locLoadingText: {
+    locationStatusText: {
         fontSize: 12,
         fontWeight: '600',
     },
@@ -608,23 +745,6 @@ const styles = StyleSheet.create({
         fontSize: 13,
         lineHeight: 20,
         fontWeight: '500',
-    },
-    detailCard: {
-        marginTop: 14,
-        marginHorizontal: 16,
-        borderRadius: 20,
-        padding: 18,
-        borderWidth: 1,
-        shadowColor: '#120B09',
-        shadowOffset: { width: 0, height: 10 },
-        shadowRadius: 22,
-        elevation: 4,
-    },
-    sectionKicker: {
-        fontSize: 11,
-        fontWeight: '800',
-        letterSpacing: 1.5,
-        marginBottom: 16,
     },
     inputLabel: {
         fontSize: 15,
@@ -704,7 +824,6 @@ const styles = StyleSheet.create({
     },
     discardHint: {
         marginTop: 14,
-        marginBottom: 28,
         paddingHorizontal: 24,
         textAlign: 'center',
         fontSize: 13,

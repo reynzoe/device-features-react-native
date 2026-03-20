@@ -22,6 +22,9 @@ function LayoutContent() {
                     contentStyle: { backgroundColor: colors.background },
                     headerShadowVisible: false,
                     headerBackButtonDisplayMode: 'minimal',
+                    animation: 'slide_from_right',
+                    gestureEnabled: true,
+                    fullScreenGestureEnabled: true,
                 }}
             >
                 {/* Home — custom header rendered inside the screen */}
@@ -34,6 +37,7 @@ function LayoutContent() {
                         title: 'New Memory',
                         headerStyle: { backgroundColor: colors.surface },
                         headerTintColor: colors.text,
+                        animation: 'fade_from_bottom',
                     }}
                 />
             </Stack>

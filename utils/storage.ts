@@ -27,3 +27,21 @@ export async function removeEntry(id: string): Promise<TravelEntry[]> {
     await AsyncStorage.setItem(ENTRIES_KEY, JSON.stringify(updated));
     return updated;
 }
+
+export async function updateEntry(
+    id: string,
+    updates: Partial<Pick<TravelEntry, 'title' | 'description'>>
+): Promise<TravelEntry[]> {
+    const current = await loadEntries();
+    const updated = current.map((entry) =>
+        entry.id === id
+            ? {
+                ...entry,
+                ...updates,
+            }
+            : entry
+    );
+
+    await AsyncStorage.setItem(ENTRIES_KEY, JSON.stringify(updated));
+    return updated;
+}

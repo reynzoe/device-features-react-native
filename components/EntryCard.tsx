@@ -5,6 +5,7 @@ import { TravelEntry } from '../types';
 
 interface Props {
     entry: TravelEntry;
+    onPress: () => void;
     onRemove: () => void;
 }
 
@@ -37,7 +38,7 @@ const getLocationPill = (address: string) => {
 };
 
 const getEntryTitle = (entry: TravelEntry) =>
-    entry.title?.trim() || getLocationPill(entry.address) || 'Untitled memory';
+    entry.title?.trim() || 'Travel Photo';
 
 const getSubtitle = (entry: TravelEntry) => entry.description?.trim() || '';
 
@@ -46,12 +47,15 @@ const getRegionTag = (address: string) => {
     return cleanPlacePart(parts[parts.length - 1] || parts[0] || 'Trip') || 'Trip';
 };
 
-export default function EntryCard({ entry, onRemove }: Props) {
+export default function EntryCard({ entry, onPress, onRemove }: Props) {
     const { colors, isDark } = useTheme();
     const { date, time } = fmt(entry.createdAt);
 
     return (
-        <View
+        <TouchableOpacity
+            onPress={onPress}
+            activeOpacity={0.95}
+            accessibilityLabel="View entry details"
             style={[
                 styles.card,
                 {
@@ -116,7 +120,7 @@ export default function EntryCard({ entry, onRemove }: Props) {
                     </Text>
                 </View>
             </View>
-        </View>
+        </TouchableOpacity>
     );
 }
 
