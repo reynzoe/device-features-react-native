@@ -10,16 +10,41 @@ interface Props {
 
 const fmt = (iso: string) => {
     const d = new Date(iso);
-    const date = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-    const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     return { date, time };
 };
 
-const getEntryTitle = (entry: TravelEntry) =>
-    entry.title?.trim() || entry.address.split(',')[0]?.trim() || 'Untitled memory';
+const splitAddress = (address: string) =>
+    address
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean);
 
-const getEntryDescription = (entry: TravelEntry) =>
-    entry.description?.trim() || 'A quiet stop worth remembering.';
+const cleanPlacePart = (part: string) =>
+    part
+        .replace(/\b\d{4,}\b/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
+const getLocationPill = (address: string) => {
+    const parts = splitAddress(address);
+    const preferred = parts
+        .map(cleanPlacePart)
+        .find((part) => /[A-Za-z]/.test(part));
+
+    return preferred || cleanPlacePart(parts[0] || '') || 'Saved place';
+};
+
+const getEntryTitle = (entry: TravelEntry) =>
+    entry.title?.trim() || getLocationPill(entry.address) || 'Untitled memory';
+
+const getSubtitle = (entry: TravelEntry) => entry.description?.trim() || '';
+
+const getRegionTag = (address: string) => {
+    const parts = splitAddress(address);
+    return cleanPlacePart(parts[parts.length - 1] || parts[0] || 'Trip') || 'Trip';
+};
 
 export default function EntryCard({ entry, onRemove }: Props) {
     const { colors, isDark } = useTheme();
@@ -32,65 +57,63 @@ export default function EntryCard({ entry, onRemove }: Props) {
                 {
                     backgroundColor: colors.surface,
                     borderColor: colors.border,
-                    shadowOpacity: isDark ? 0.26 : 0.1,
+                    shadowOpacity: isDark ? 0.22 : 0.08,
                 },
             ]}
         >
             <View style={styles.mediaWrap}>
                 <Image source={{ uri: entry.imageUri }} style={styles.image} resizeMode="cover" />
-                <View style={styles.imageOverlay} />
+                <View style={styles.imageTint} />
+
                 <View
                     style={[
-                        styles.dateChip,
-                        { backgroundColor: isDark ? 'rgba(34,24,22,0.84)' : 'rgba(255,253,251,0.9)' },
+                        styles.locationChip,
+                        { backgroundColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.22)' },
                     ]}
                 >
-                    <Text style={[styles.dateChipText, { color: colors.text }]}>{date}</Text>
+                    <Text style={styles.locationChipText} numberOfLines={1}>
+                        {'📍 '}
+                        {getLocationPill(entry.address)}
+                    </Text>
                 </View>
 
-                <View style={styles.heroCopy}>
-                    <Text style={styles.heroTitle} numberOfLines={2}>
-                        {getEntryTitle(entry)}
-                    </Text>
-                    <Text style={styles.heroSubtitle} numberOfLines={1}>
-                        {entry.address}
-                    </Text>
-                </View>
+                <TouchableOpacity
+                    onPress={onRemove}
+                    style={[
+                        styles.removeIcon,
+                        { backgroundColor: isDark ? 'rgba(35, 23, 18, 0.34)' : 'rgba(255,255,255,0.2)' },
+                    ]}
+                    activeOpacity={0.88}
+                    accessibilityLabel="Remove entry"
+                >
+                    <Text style={styles.removeIconText}>X</Text>
+                </TouchableOpacity>
             </View>
 
-            <View style={styles.body}>
-                <View style={styles.copyBlock}>
-                    <Text style={[styles.kicker, { color: colors.primary }]}>TRAVEL NOTE</Text>
-                    <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={3}>
-                        {getEntryDescription(entry)}
+            <View style={styles.contentRow}>
+                <Image source={{ uri: entry.imageUri }} style={styles.thumb} resizeMode="cover" />
+
+                <View style={styles.copyWrap}>
+                    <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
+                        {getEntryTitle(entry)}
+                    </Text>
+                    {getSubtitle(entry) ? (
+                        <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                            {getSubtitle(entry)}
+                        </Text>
+                    ) : null}
+                    <Text style={[styles.locationLine, { color: colors.textSecondary }]} numberOfLines={1}>
+                        {entry.address}
+                    </Text>
+                    <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
+                        {date} · {time}
                     </Text>
                 </View>
 
-                <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-
-                <View style={styles.footer}>
-                    <View style={styles.metaBlock}>
-                        <Text style={[styles.locationLabel, { color: colors.textMuted }]}>Location</Text>
-                        <Text style={[styles.locationValue, { color: colors.text }]} numberOfLines={1}>
-                            {entry.address}
-                        </Text>
-                    </View>
-
-                    <View style={styles.metaBlock}>
-                        <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Saved</Text>
-                        <Text style={[styles.metaValue, { color: colors.textSecondary }]}>{time}</Text>
-                    </View>
-
-                    <TouchableOpacity
-                        onPress={onRemove}
-                        style={[
-                            styles.removeBtn,
-                            { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-                        ]}
-                        activeOpacity={0.85}
-                    >
-                        <Text style={[styles.removeText, { color: colors.danger }]}>Delete</Text>
-                    </TouchableOpacity>
+                <View style={[styles.regionTag, { backgroundColor: colors.primaryLight }]}>
+                    <Text style={[styles.regionTagText, { color: colors.primary }]} numberOfLines={1}>
+                        {getRegionTag(entry.address)}
+                    </Text>
                 </View>
             </View>
         </View>
@@ -99,10 +122,10 @@ export default function EntryCard({ entry, onRemove }: Props) {
 
 const styles = StyleSheet.create({
     card: {
-        borderRadius: 24,
+        borderRadius: 28,
         overflow: 'hidden',
         borderWidth: 1,
-        shadowColor: '#101820',
+        shadowColor: '#120B09',
         shadowOffset: { width: 0, height: 12 },
         shadowRadius: 24,
         elevation: 4,
@@ -112,105 +135,87 @@ const styles = StyleSheet.create({
     },
     image: {
         width: '100%',
-        height: 176,
+        height: 214,
     },
-    imageOverlay: {
+    imageTint: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(29, 17, 13, 0.28)',
+        backgroundColor: 'rgba(35, 20, 17, 0.18)',
     },
-    dateChip: {
+    locationChip: {
         position: 'absolute',
         left: 16,
         top: 16,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 999,
-    },
-    dateChipText: {
-        fontSize: 12,
-        fontWeight: '700',
-        letterSpacing: 0.2,
-    },
-    heroCopy: {
-        position: 'absolute',
-        left: 16,
-        right: 16,
-        bottom: 16,
-        gap: 4,
-    },
-    heroTitle: {
-        color: '#FFFFFF',
-        fontSize: 24,
-        lineHeight: 28,
-        fontWeight: '800',
-    },
-    heroSubtitle: {
-        color: 'rgba(255,255,255,0.9)',
-        fontSize: 13,
-        fontWeight: '600',
-    },
-    body: {
-        padding: 16,
-    },
-    copyBlock: {
-        gap: 10,
-    },
-    kicker: {
-        fontSize: 11,
-        fontWeight: '800',
-        letterSpacing: 1.4,
-    },
-    description: {
-        fontSize: 15,
-        lineHeight: 23,
-        fontWeight: '500',
-    },
-    divider: {
-        height: 1,
-        marginVertical: 14,
-    },
-    footer: {
-        flexDirection: 'row',
-        alignItems: 'flex-end',
-        justifyContent: 'space-between',
-        gap: 14,
-        flexWrap: 'wrap',
-    },
-    metaBlock: {
-        gap: 5,
-        flexShrink: 1,
-    },
-    locationLabel: {
-        fontSize: 11,
-        fontWeight: '700',
-        letterSpacing: 1,
-        textTransform: 'uppercase',
-    },
-    locationValue: {
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    metaLabel: {
-        fontSize: 11,
-        fontWeight: '700',
-        letterSpacing: 1,
-        textTransform: 'uppercase',
-    },
-    metaValue: {
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    removeBtn: {
-        minWidth: 88,
+        maxWidth: '68%',
         paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingVertical: 10,
         borderRadius: 999,
         borderWidth: 1,
-        alignItems: 'center',
+        borderColor: 'rgba(255,255,255,0.18)',
     },
-    removeText: {
+    locationChipText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    removeIcon: {
+        position: 'absolute',
+        right: 16,
+        top: 16,
+        width: 44,
+        height: 44,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.08)',
+    },
+    removeIconText: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '800',
+    },
+    contentRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+        paddingHorizontal: 16,
+        paddingVertical: 18,
+    },
+    thumb: {
+        width: 56,
+        height: 56,
+        borderRadius: 18,
+    },
+    copyWrap: {
+        flex: 1,
+        gap: 4,
+    },
+    title: {
+        fontSize: 17,
+        fontWeight: '900',
+    },
+    subtitle: {
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    locationLine: {
         fontSize: 13,
         fontWeight: '700',
-        letterSpacing: 0.2,
+    },
+    meta: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    regionTag: {
+        maxWidth: 92,
+        paddingHorizontal: 14,
+        paddingVertical: 9,
+        borderRadius: 999,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    regionTagText: {
+        fontSize: 12,
+        fontWeight: '800',
     },
 });

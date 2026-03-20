@@ -7,8 +7,7 @@ import {
     StyleSheet,
     Alert,
     ActivityIndicator,
-    ScrollView,
-    ImageBackground,
+    TextInput,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,26 +16,25 @@ import { loadEntries, removeEntry } from '../utils/storage';
 import { TravelEntry } from '../types';
 import EntryCard from '../components/EntryCard';
 
-const formatChipLabel = (address: string) => address.split(',')[0]?.trim() || 'Destination';
+const splitAddress = (address: string) =>
+    address
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean);
 
-const formatFullDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-    });
-
-const getEntryTitle = (entry: TravelEntry) =>
-    entry.title?.trim() || formatChipLabel(entry.address) || 'Untitled memory';
-
-const getEntryDescription = (entry: TravelEntry) =>
-    entry.description?.trim() || entry.address;
+const matchesSearch = (entry: TravelEntry, query: string) => {
+    if (!query) return true;
+    const haystack = [entry.title, entry.description, entry.address].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(query);
+};
 
 export default function HomeScreen() {
     const { colors, theme, toggleTheme } = useTheme();
     const router = useRouter();
     const [entries, setEntries] = useState<TravelEntry[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searchDraft, setSearchDraft] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
 
     useFocusEffect(
         useCallback(() => {
@@ -77,160 +75,120 @@ export default function HomeScreen() {
         );
     };
 
-    const latestEntry = entries[0];
-    const chips = ['All', ...Array.from(new Set(entries.slice(0, 6).map((entry) => formatChipLabel(entry.address))))];
+    const applySearch = () => {
+        setSearchQuery(searchDraft.trim().toLowerCase());
+    };
+
+    const filteredEntries = entries.filter((entry) => matchesSearch(entry, searchQuery));
+    const sectionMeta = searchQuery
+        ? `${filteredEntries.length} match${filteredEntries.length === 1 ? '' : 'es'}`
+        : entries.length === 0
+          ? 'No Entries yet'
+          : `${entries.length} total`;
 
     const header = (
         <View style={styles.headerWrap}>
-            <View style={styles.topBar}>
-                <View style={styles.brandWrap}>
-                    <Text style={[styles.brand, { color: colors.text }]}>Wanderly</Text>
-                    {entries.length > 0 ? (
-                        <View
-                            style={[
-                                styles.countPill,
-                                { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-                            ]}
-                        >
-                            <Text style={[styles.countPillText, { color: colors.textSecondary }]}>
-                                {entries.length} memories
-                            </Text>
-                        </View>
-                    ) : null}
+            <View style={styles.searchRow}>
+                <View
+                    style={[
+                        styles.searchField,
+                        { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                    ]}
+                >
+                    <TextInput
+                        value={searchDraft}
+                        onChangeText={setSearchDraft}
+                        onSubmitEditing={applySearch}
+                        placeholder="Search memories..."
+                        placeholderTextColor={colors.textMuted}
+                        style={[styles.searchInput, { color: colors.text }]}
+                        returnKeyType="search"
+                    />
                 </View>
 
                 <TouchableOpacity
-                    onPress={toggleTheme}
-                    style={[
-                        styles.modeToggle,
-                        { backgroundColor: colors.surface, borderColor: colors.border },
-                    ]}
-                    activeOpacity={0.85}
+                    style={[styles.searchButton, { backgroundColor: colors.primary }]}
+                    onPress={applySearch}
+                    activeOpacity={0.9}
                 >
-                    <Text style={[styles.modeToggleText, { color: colors.textSecondary }]}>
-                        {theme === 'light' ? 'Night' : 'Day'}
-                    </Text>
+                    <Text style={styles.searchButtonText}>Search</Text>
                 </TouchableOpacity>
             </View>
 
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipsRow}
-            >
-                {chips.map((chip, index) => {
-                    const active = index === 0;
-                    return (
-                        <View
-                            key={`${chip}-${index}`}
-                            style={[
-                                styles.chip,
-                                active
-                                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                                    : { backgroundColor: colors.surface, borderColor: colors.border },
-                            ]}
-                        >
-                            <Text
-                                style={[
-                                    styles.chipText,
-                                    { color: active ? '#FFFFFF' : colors.textSecondary },
-                                ]}
-                            >
-                                {chip}
-                            </Text>
-                        </View>
-                    );
-                })}
-            </ScrollView>
-
-            {latestEntry ? (
-                <ImageBackground
-                    source={{ uri: latestEntry.imageUri }}
-                    style={styles.featureCard}
-                    imageStyle={styles.featureImage}
-                >
-                    <View style={styles.featureOverlay} />
-                    <View style={styles.featureBody}>
-                        <View style={styles.featureTag}>
-                            <Text style={styles.featureTagText}>Featured Memory</Text>
-                        </View>
-
-                        <Text style={styles.featureTitle} numberOfLines={2}>
-                            {getEntryTitle(latestEntry)}
-                        </Text>
-                        <Text style={styles.featureSubtitle} numberOfLines={2}>
-                            {getEntryDescription(latestEntry)}
-                        </Text>
-
-                        <View style={styles.featureMetaRow}>
-                            <View style={styles.featureMetaBlock}>
-                                <Text style={styles.featureMetaLabel}>{formatChipLabel(latestEntry.address)}</Text>
-                                <Text style={styles.featureMetaValue}>
-                                    {formatFullDate(latestEntry.createdAt)}
-                                </Text>
-                            </View>
-
-                            <TouchableOpacity
-                                style={styles.featureAction}
-                                onPress={() => router.push('/add-entry')}
-                                activeOpacity={0.9}
-                            >
-                                <Text style={styles.featureActionText}>Capture</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </ImageBackground>
-            ) : (
-                <View
-                    style={[
-                        styles.emptyFeature,
-                        { backgroundColor: colors.surface, borderColor: colors.border },
-                    ]}
-                >
-                    <Text style={[styles.emptyFeatureKicker, { color: colors.primary }]}>Fresh Journal</Text>
-                    <Text style={[styles.emptyFeatureTitle, { color: colors.text }]}>Your next photo becomes a story.</Text>
-                    <Text style={[styles.emptyFeatureBody, { color: colors.textSecondary }]}>
-                        Save a place, add a title, and keep a short note for each trip.
-                    </Text>
-                </View>
-            )}
-
             <View style={styles.sectionRow}>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Entries</Text>
-                <Text style={[styles.sectionMeta, { color: colors.textMuted }]}>
-                    {entries.length === 0 ? 'No entries yet' : `${entries.length} total`}
-                </Text>
+                <Text style={[styles.sectionMeta, { color: colors.textMuted }]}>{sectionMeta}</Text>
             </View>
         </View>
     );
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+            <View style={styles.toolbarWrap}>
+                <View style={styles.toolbarRow}>
+                    <Text style={[styles.toolbarBrand, { color: colors.text }]}>Wanderly</Text>
+
+                    <View style={styles.toolbarActions}>
+                        <TouchableOpacity
+                            onPress={toggleTheme}
+                            style={[
+                                styles.modeToggle,
+                                { backgroundColor: colors.surface, borderColor: colors.border },
+                            ]}
+                            activeOpacity={0.88}
+                        >
+                            <Text style={[styles.modeToggleText, { color: colors.textSecondary }]}>
+                                {theme === 'light' ? 'Light' : 'Dark'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+
             {loading ? (
                 <View style={styles.center}>
                     <ActivityIndicator size="large" color={colors.primary} />
                 </View>
-            ) : entries.length === 0 ? (
-                <View style={styles.emptyShell}>{header}</View>
             ) : (
                 <FlatList
-                    data={entries}
+                    data={filteredEntries}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => <EntryCard entry={item} onRemove={() => handleRemove(item.id)} />}
                     ListHeaderComponent={header}
+                    ListEmptyComponent={
+                        <View
+                            style={[
+                                styles.emptyState,
+                                { backgroundColor: colors.surface, borderColor: colors.border },
+                            ]}
+                        >
+                            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                                {searchQuery ? 'No matching entries' : 'No Entries yet'}
+                            </Text>
+                            <Text style={[styles.emptyBody, { color: colors.textSecondary }]}>
+                                {searchQuery
+                                    ? 'Try another title, place, or keyword.'
+                                    : 'Take a photo and start building your travel diary.'}
+                            </Text>
+                        </View>
+                    }
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
                     ItemSeparatorComponent={() => <View style={styles.separator} />}
+                    keyboardShouldPersistTaps="handled"
                 />
             )}
 
             <TouchableOpacity
-                style={[styles.floatingCta, { backgroundColor: colors.primary }]}
+                style={[
+                    styles.bottomCta,
+                    { backgroundColor: colors.primary, borderColor: colors.primary },
+                ]}
                 onPress={() => router.push('/add-entry')}
                 activeOpacity={0.92}
                 accessibilityLabel="Add travel entry"
             >
-                <Text style={styles.floatingCtaText}>Add Entry</Text>
+                <Text style={styles.bottomCtaPlus}>+</Text>
             </TouchableOpacity>
         </SafeAreaView>
     );
@@ -245,216 +203,134 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    emptyShell: {
-        flex: 1,
+    toolbarWrap: {
         paddingHorizontal: 18,
-        paddingTop: 10,
+        paddingTop: 6,
+        paddingBottom: 8,
     },
-    listContent: {
-        paddingHorizontal: 18,
-        paddingTop: 10,
-        paddingBottom: 108,
-    },
-    headerWrap: {
-        marginBottom: 4,
-    },
-    separator: {
-        height: 18,
-    },
-    topBar: {
+    toolbarRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 12,
-        marginBottom: 14,
     },
-    brandWrap: {
+    toolbarBrand: {
+        fontSize: 24,
+        fontWeight: '900',
+        letterSpacing: -0.8,
+    },
+    toolbarActions: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        flexShrink: 1,
     },
-    brand: {
-        fontSize: 32,
-        fontWeight: '900',
-        letterSpacing: -1,
+    listContent: {
+        paddingHorizontal: 18,
+        paddingTop: 4,
+        paddingBottom: 96,
     },
-    countPill: {
-        paddingHorizontal: 12,
-        paddingVertical: 7,
-        borderRadius: 999,
-        borderWidth: 1,
+    separator: {
+        height: 18,
     },
-    countPillText: {
-        fontSize: 12,
-        fontWeight: '700',
+    headerWrap: {
+        marginBottom: 18,
     },
     modeToggle: {
-        minWidth: 78,
-        paddingHorizontal: 14,
+        minWidth: 82,
+        paddingHorizontal: 16,
         paddingVertical: 11,
         borderRadius: 999,
         borderWidth: 1,
         alignItems: 'center',
     },
     modeToggleText: {
-        fontSize: 12,
-        fontWeight: '700',
-    },
-    chipsRow: {
-        paddingBottom: 16,
-        gap: 10,
-    },
-    chip: {
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 18,
-        borderWidth: 1,
-    },
-    chipText: {
         fontSize: 13,
         fontWeight: '700',
-        letterSpacing: 0.2,
     },
-    featureCard: {
-        height: 208,
-        borderRadius: 30,
-        overflow: 'hidden',
-        marginBottom: 18,
-        justifyContent: 'flex-end',
-        backgroundColor: '#D2A291',
-    },
-    featureImage: {
-        borderRadius: 30,
-    },
-    featureOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(35, 20, 17, 0.34)',
-    },
-    featureBody: {
-        paddingHorizontal: 20,
-        paddingVertical: 18,
-        gap: 10,
-    },
-    featureTag: {
-        alignSelf: 'flex-start',
-        paddingHorizontal: 12,
-        paddingVertical: 7,
-        borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.18)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.2)',
-    },
-    featureTagText: {
-        color: '#FFFFFF',
-        fontSize: 11,
-        fontWeight: '700',
-        letterSpacing: 0.4,
-    },
-    featureTitle: {
-        color: '#FFFFFF',
-        fontSize: 28,
-        lineHeight: 32,
-        fontWeight: '800',
-        maxWidth: '84%',
-    },
-    featureSubtitle: {
-        color: 'rgba(255,255,255,0.92)',
-        fontSize: 14,
-        lineHeight: 21,
-        maxWidth: '92%',
-    },
-    featureMetaRow: {
+    searchRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-end',
         gap: 12,
-        marginTop: 2,
+        marginBottom: 16,
     },
-    featureMetaBlock: {
-        gap: 2,
+    searchField: {
         flex: 1,
-    },
-    featureMetaLabel: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    featureMetaValue: {
-        color: 'rgba(255,255,255,0.84)',
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    featureAction: {
+        borderRadius: 22,
+        borderWidth: 1,
         paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.18)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.24)',
+        justifyContent: 'center',
+        minHeight: 58,
     },
-    featureActionText: {
+    searchInput: {
+        fontSize: 16,
+        fontWeight: '500',
+    },
+    searchButton: {
+        minWidth: 96,
+        paddingHorizontal: 18,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    searchButtonText: {
         color: '#FFFFFF',
-        fontSize: 13,
-        fontWeight: '800',
-    },
-    emptyFeature: {
-        borderRadius: 28,
-        borderWidth: 1,
-        padding: 22,
-        marginBottom: 18,
-    },
-    emptyFeatureKicker: {
-        fontSize: 10,
-        fontWeight: '800',
-        letterSpacing: 1.4,
-        marginBottom: 10,
-        textTransform: 'uppercase',
-    },
-    emptyFeatureTitle: {
-        fontSize: 24,
-        lineHeight: 30,
-        fontWeight: '800',
-        marginBottom: 10,
-    },
-    emptyFeatureBody: {
         fontSize: 14,
-        lineHeight: 22,
+        fontWeight: '800',
+        letterSpacing: 0.2,
     },
     sectionRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 14,
+        marginBottom: 6,
     },
     sectionTitle: {
         fontSize: 18,
-        fontWeight: '800',
+        fontWeight: '900',
+        letterSpacing: 0.3,
     },
     sectionMeta: {
         fontSize: 13,
-        fontWeight: '600',
+        fontWeight: '700',
     },
-    floatingCta: {
+    emptyState: {
+        borderRadius: 28,
+        borderWidth: 1,
+        paddingVertical: 28,
+        paddingHorizontal: 24,
+        alignItems: 'center',
+        marginTop: 6,
+    },
+    emptyTitle: {
+        fontSize: 20,
+        fontWeight: '800',
+        marginBottom: 10,
+    },
+    emptyBody: {
+        fontSize: 14,
+        lineHeight: 22,
+        textAlign: 'center',
+    },
+    bottomCta: {
         position: 'absolute',
-        right: 18,
-        bottom: 24,
-        minWidth: 118,
-        height: 52,
-        paddingHorizontal: 20,
-        borderRadius: 26,
+        left: 18,
+        bottom: 22,
+        width: 58,
+        height: 58,
+        borderRadius: 29,
+        borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
         shadowColor: '#F26F5C',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.28,
-        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 14 },
+        shadowOpacity: 0.2,
+        shadowRadius: 22,
         elevation: 5,
     },
-    floatingCtaText: {
+    bottomCtaPlus: {
         color: '#FFFFFF',
-        fontSize: 15,
+        fontSize: 24,
+        lineHeight: 24,
         fontWeight: '800',
-        letterSpacing: 0.2,
+        marginTop: -2,
     },
 });
