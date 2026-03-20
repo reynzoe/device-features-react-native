@@ -13,6 +13,8 @@ import {
     useWindowDimensions,
     Animated,
     Easing,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -61,6 +63,7 @@ export default function HomeScreen() {
     const [savingEntry, setSavingEntry] = useState(false);
     const [modalImageAspectRatio, setModalImageAspectRatio] = useState(1);
     const [isPhotoZoomVisible, setIsPhotoZoomVisible] = useState(false);
+    const editDescriptionInputRef = useRef<TextInput>(null);
     const hasHydratedEntriesRef = useRef(false);
     const entriesSignatureRef = useRef('');
     const detailCardOpacity = useRef(new Animated.Value(0)).current;
@@ -403,33 +406,43 @@ export default function HomeScreen() {
                 onRequestClose={closeEntryDetails}
             >
                 <View style={styles.modalOverlay}>
-                    <ScrollView
-                        style={styles.modalScroll}
-                        contentContainerStyle={styles.modalScrollContent}
-                        showsVerticalScrollIndicator={false}
-                        bounces={false}
-                        keyboardShouldPersistTaps="handled"
+                    <KeyboardAvoidingView
+                        style={styles.flex}
+                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                        keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
                     >
-                        <Animated.View
-                            style={[
-                                styles.modalCard,
-                                {
-                                    width: modalCardWidth,
-                                    backgroundColor: colors.surface,
-                                    borderColor: colors.border,
-                                    shadowOpacity: isDark ? 0.34 : 0.14,
-                                    opacity: detailCardOpacity,
-                                    transform: [{ translateY: detailCardTranslateY }, { scale: detailCardScale }],
-                                },
+                        <ScrollView
+                            style={styles.modalScroll}
+                            contentContainerStyle={[
+                                styles.modalScrollContent,
+                                isEditingEntry && styles.modalScrollContentEditing,
                             ]}
+                            showsVerticalScrollIndicator={false}
+                            bounces={false}
+                            keyboardShouldPersistTaps="handled"
+                            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                            automaticallyAdjustKeyboardInsets
                         >
-                            {selectedEntry ? (
-                                <>
-                                    <View style={styles.modalMediaWrap}>
-                                        <TouchableOpacity
-                                            onPress={() => setIsPhotoZoomVisible(true)}
-                                            activeOpacity={0.94}
-                                            accessibilityLabel="Open photo zoom"
+                            <Animated.View
+                                style={[
+                                    styles.modalCard,
+                                    {
+                                        width: modalCardWidth,
+                                        backgroundColor: colors.surface,
+                                        borderColor: colors.border,
+                                        shadowOpacity: isDark ? 0.34 : 0.14,
+                                        opacity: detailCardOpacity,
+                                        transform: [{ translateY: detailCardTranslateY }, { scale: detailCardScale }],
+                                    },
+                                ]}
+                            >
+                                {selectedEntry ? (
+                                    <>
+                                        <View style={styles.modalMediaWrap}>
+                                            <TouchableOpacity
+                                                onPress={() => setIsPhotoZoomVisible(true)}
+                                                activeOpacity={0.94}
+                                                accessibilityLabel="Open photo zoom"
                                             >
                                                 <Image
                                                     source={{ uri: selectedEntry.imageUri }}
@@ -437,121 +450,130 @@ export default function HomeScreen() {
                                                     resizeMode="cover"
                                                 />
                                             </TouchableOpacity>
-                                        <View style={styles.photoHintWrap}>
-                                            <View style={styles.photoHintChip}>
-                                                <Text style={styles.photoHintText}>Tap photo to view fully</Text>
+                                            <View style={styles.photoHintWrap}>
+                                                <View style={styles.photoHintChip}>
+                                                    <Text style={styles.photoHintText}>Tap photo to view fully</Text>
+                                                </View>
                                             </View>
+                                            <TouchableOpacity
+                                                style={[
+                                                    styles.modalCloseButton,
+                                                    { backgroundColor: isDark ? 'rgba(32,24,22,0.86)' : 'rgba(255,255,255,0.9)' },
+                                                ]}
+                                                onPress={closeEntryDetails}
+                                                activeOpacity={0.88}
+                                            >
+                                                <Text style={[styles.modalCloseText, { color: colors.text }]}>Close</Text>
+                                            </TouchableOpacity>
                                         </View>
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.modalCloseButton,
-                                                { backgroundColor: isDark ? 'rgba(32,24,22,0.86)' : 'rgba(255,255,255,0.9)' },
-                                            ]}
-                                            onPress={closeEntryDetails}
-                                            activeOpacity={0.88}
-                                        >
-                                            <Text style={[styles.modalCloseText, { color: colors.text }]}>Close</Text>
-                                        </TouchableOpacity>
-                                    </View>
 
-                                    <View style={styles.modalBody}>
-                                        <Text style={[styles.modalLocation, { color: colors.primary }]}>
-                                            {selectedEntry.address}
-                                        </Text>
+                                        <View style={styles.modalBody}>
+                                            <Text style={[styles.modalLocation, { color: colors.primary }]}>
+                                                {selectedEntry.address}
+                                            </Text>
 
-                                        {isEditingEntry ? (
-                                            <>
-                                                <Text style={[styles.modalLabel, { color: colors.text }]}>Title</Text>
-                                                <TextInput
-                                                    value={editTitleDraft}
-                                                    onChangeText={setEditTitleDraft}
-                                                    placeholder={DEFAULT_ENTRY_TITLE}
-                                                    placeholderTextColor={colors.textMuted}
-                                                    style={[
-                                                        styles.modalInput,
-                                                        {
-                                                            color: colors.text,
-                                                            backgroundColor: colors.background,
-                                                            borderColor: colors.borderLight,
-                                                        },
-                                                    ]}
-                                                />
-
-                                                <Text style={[styles.modalLabel, { color: colors.text }]}>Description</Text>
-                                                <TextInput
-                                                    value={editDescriptionDraft}
-                                                    onChangeText={(value) => setEditDescriptionDraft(value.slice(0, 220))}
-                                                    placeholder="Add a short note about this memory"
-                                                    placeholderTextColor={colors.textMuted}
-                                                    style={[
-                                                        styles.modalTextArea,
-                                                        {
-                                                            color: colors.text,
-                                                            backgroundColor: colors.background,
-                                                            borderColor: colors.borderLight,
-                                                        },
-                                                    ]}
-                                                    multiline
-                                                    textAlignVertical="top"
-                                                />
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Text style={[styles.modalTitle, { color: colors.text }]}>
-                                                    {getEntryTitle(selectedEntry)}
-                                                </Text>
-                                                <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
-                                                    {getEntryDescription(selectedEntry)}
-                                                </Text>
-                                            </>
-                                        )}
-
-                                        <Text style={[styles.modalMeta, { color: colors.textMuted }]}>
-                                            {formatFullDate(selectedEntry.createdAt)}
-                                        </Text>
-
-                                        <View style={styles.modalActions}>
                                             {isEditingEntry ? (
                                                 <>
-                                                    <TouchableOpacity
+                                                    <Text style={[styles.modalLabel, { color: colors.text }]}>Title</Text>
+                                                    <TextInput
+                                                        value={editTitleDraft}
+                                                        onChangeText={setEditTitleDraft}
+                                                        placeholder={DEFAULT_ENTRY_TITLE}
+                                                        placeholderTextColor={colors.textMuted}
                                                         style={[
-                                                            styles.modalSecondaryButton,
-                                                            { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                                                            styles.modalInput,
+                                                            {
+                                                                color: colors.text,
+                                                                backgroundColor: colors.background,
+                                                                borderColor: colors.borderLight,
+                                                            },
                                                         ]}
-                                                        onPress={cancelEditingEntry}
-                                                        disabled={savingEntry}
-                                                    >
-                                                        <Text style={[styles.modalSecondaryText, { color: colors.textSecondary }]}>
-                                                            Cancel
-                                                        </Text>
-                                                    </TouchableOpacity>
+                                                        returnKeyType="next"
+                                                        blurOnSubmit={false}
+                                                        onSubmitEditing={() => editDescriptionInputRef.current?.focus()}
+                                                    />
 
-                                                    <TouchableOpacity
-                                                        style={[styles.modalPrimaryButton, { backgroundColor: colors.primary }]}
-                                                        onPress={saveEntryEdits}
-                                                        disabled={savingEntry}
-                                                    >
-                                                        {savingEntry ? (
-                                                            <ActivityIndicator size="small" color="#FFF" />
-                                                        ) : (
-                                                            <Text style={styles.modalPrimaryText}>Save Changes</Text>
-                                                        )}
-                                                    </TouchableOpacity>
+                                                    <Text style={[styles.modalLabel, { color: colors.text }]}>
+                                                        Description
+                                                    </Text>
+                                                    <TextInput
+                                                        ref={editDescriptionInputRef}
+                                                        value={editDescriptionDraft}
+                                                        onChangeText={(value) => setEditDescriptionDraft(value.slice(0, 220))}
+                                                        placeholder="Add a short note about this memory"
+                                                        placeholderTextColor={colors.textMuted}
+                                                        style={[
+                                                            styles.modalTextArea,
+                                                            {
+                                                                color: colors.text,
+                                                                backgroundColor: colors.background,
+                                                                borderColor: colors.borderLight,
+                                                            },
+                                                        ]}
+                                                        multiline
+                                                        textAlignVertical="top"
+                                                        returnKeyType="done"
+                                                        scrollEnabled={false}
+                                                    />
                                                 </>
                                             ) : (
-                                                <TouchableOpacity
-                                                    style={[styles.modalPrimaryButton, { backgroundColor: colors.primary }]}
-                                                    onPress={startEditingEntry}
-                                                >
-                                                    <Text style={styles.modalPrimaryText}>Edit Entry</Text>
-                                                </TouchableOpacity>
+                                                <>
+                                                    <Text style={[styles.modalTitle, { color: colors.text }]}>
+                                                        {getEntryTitle(selectedEntry)}
+                                                    </Text>
+                                                    <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
+                                                        {getEntryDescription(selectedEntry)}
+                                                    </Text>
+                                                </>
                                             )}
+
+                                            <Text style={[styles.modalMeta, { color: colors.textMuted }]}>
+                                                {formatFullDate(selectedEntry.createdAt)}
+                                            </Text>
+
+                                            <View style={styles.modalActions}>
+                                                {isEditingEntry ? (
+                                                    <>
+                                                        <TouchableOpacity
+                                                            style={[
+                                                                styles.modalSecondaryButton,
+                                                                { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                                                            ]}
+                                                            onPress={cancelEditingEntry}
+                                                            disabled={savingEntry}
+                                                        >
+                                                            <Text style={[styles.modalSecondaryText, { color: colors.textSecondary }]}>
+                                                                Cancel
+                                                            </Text>
+                                                        </TouchableOpacity>
+
+                                                        <TouchableOpacity
+                                                            style={[styles.modalPrimaryButton, { backgroundColor: colors.primary }]}
+                                                            onPress={saveEntryEdits}
+                                                            disabled={savingEntry}
+                                                        >
+                                                            {savingEntry ? (
+                                                                <ActivityIndicator size="small" color="#FFF" />
+                                                            ) : (
+                                                                <Text style={styles.modalPrimaryText}>Save Changes</Text>
+                                                            )}
+                                                        </TouchableOpacity>
+                                                    </>
+                                                ) : (
+                                                    <TouchableOpacity
+                                                        style={[styles.modalPrimaryButton, { backgroundColor: colors.primary }]}
+                                                        onPress={startEditingEntry}
+                                                    >
+                                                        <Text style={styles.modalPrimaryText}>Edit Entry</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
                                         </View>
-                                    </View>
-                                </>
-                            ) : null}
-                        </Animated.View>
-                    </ScrollView>
+                                    </>
+                                ) : null}
+                            </Animated.View>
+                        </ScrollView>
+                    </KeyboardAvoidingView>
 
                     {selectedEntry && isPhotoZoomVisible ? (
                         <Animated.View style={[styles.zoomOverlay, { opacity: zoomOverlayOpacity }]}>

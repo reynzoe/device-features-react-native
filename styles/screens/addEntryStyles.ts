@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
 
     previewContent: {
         paddingTop: 16,
-        paddingBottom: 32,
+        paddingBottom: 140,
     },
     previewCard: {
         marginHorizontal: 16,

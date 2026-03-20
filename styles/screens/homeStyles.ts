@@ -1,6 +1,9 @@
 import { StyleSheet } from 'react-native';
 
 const styles = StyleSheet.create({
+    flex: {
+        flex: 1,
+    },
     container: {
         flex: 1,
     },
@@ -147,6 +150,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 36,
+    },
+    modalScrollContentEditing: {
+        justifyContent: 'flex-start',
+        paddingTop: 28,
+        paddingBottom: 140,
     },
     modalCard: {
         borderRadius: 28,

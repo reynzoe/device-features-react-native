@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { setupNotificationChannel } from '../utils/notifications';
 
@@ -49,7 +50,9 @@ function LayoutContent() {
 export default function RootLayout() {
     return (
         <ThemeProvider>
-            <LayoutContent />
+            <GestureHandlerRootView style={{ flex: 1 }}>
+                <LayoutContent />
+            </GestureHandlerRootView>
         </ThemeProvider>
     );
 }
